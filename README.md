@@ -2,7 +2,7 @@
 
 TurboQuant(SW)와 ITME(HW)를 데이터센터·클라우드 서빙 관점에서 비교하는 Agentic RAG 프로젝트의 협업용 뼈대입니다.
 
-**현재는 API 키 없이 실행되는 개발용 workflow입니다.** 실제 PDF 검색, BGE-M3 임베딩, VectorDB, LLM 평가와 웹검색은 연결 전입니다. 기본 provider는 결과를 만들어내지 않고 `판단 보류`를 반환합니다. 설계서의 기술 주장·논문 ID·성능 수치는 검증된 사실로 사용하지 않습니다.
+**기본 실행은 API 키 없는 개발용 workflow입니다.** TRL·시장성·이해관계자·도메인은 Ollama Qwen3 + Tavily provider를 별도로 사용할 수 있습니다. PDF 검색, BGE-M3, VectorDB와 최종 의미 검증은 구현 대기입니다. 기본 provider는 결과를 만들어내지 않고 `판단 보류`를 반환합니다. 설계서의 기술 주장·논문 ID·성능 수치는 검증된 사실로 사용하지 않습니다.
 
 ## 빠른 시작
 
@@ -19,6 +19,36 @@ make lint
 
 ```bash
 uv run skala-agent --output outputs/my-report.md
+```
+
+## Ollama 4B / 8B 실행
+
+기술 조사·추가 검색은 **qwen3:4b**, 평가·검증·종합·보고서는 **qwen3:8b**로 배정합니다. `.env`에 `USE_SINGLE_MODEL=true`를 설정하면 전 Agent를 **qwen3:4b 하나**로 배정합니다.
+
+```bash
+# macOS. Ollama 서버는 별도 터미널에서 실행해 둡니다.
+brew install ollama
+ollama serve
+```
+
+새 터미널에서:
+
+```bash
+ollama pull qwen3:4b
+ollama pull qwen3:8b  # 저사양 단일 모델 모드는 생략
+
+git clone https://github.com/kchanis1223/-SKALA-KVCache_Report_Agent.git
+cd -- -SKALA-KVCache_Report_Agent
+# PR 검토 중: main 병합 후에는 생략
+git switch feat/issue-6-stakeholder-domain
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+# .env.local에 TAVILY_API_KEY를 입력합니다 (Git 제외).
+python app.py                        # 기본 demo: 모델 호출 없음
+python app.py --mode real --timeout 600  # Ollama 연결
+skala-evaluate --perspective all      # 네 관점 모두 평가
 ```
 
 ## 구성
@@ -89,7 +119,7 @@ flowchart TD
 3. 윤소영: provider를 `build_graph(provider)`에 주입하고 실제 데이터 통합. 필요하면 checkpoint·실행 로그·오류 처리 추가.
 4. 이준형: 설계서 4-7 상충 탐지, 문장별 근거 검증·중립성 검사, 참고문헌 서식과 보고서 본문 구현.
 
-`prompts/*.md`는 참고 초안이며 현재 demo는 읽지 않습니다. 실제 provider에서 읽고 structured output schema와 함께 적용해야 합니다. 실제 모델·검색 provider 및 VectorDB 제품은 아직 고정하지 않았습니다.
+`prompts/trl.md`와 `market.md`는 실제 평가 provider가 읽습니다. 나머지 프롬프트는 참고 초안이며 demo는 읽지 않습니다. 실제 provider에서 읽고 structured output schema와 함께 적용해야 합니다. 이슈 #5는 Ollama Qwen3·Tavily를 사용하며 model/search 객체는 교체할 수 있습니다. VectorDB 제품은 미정입니다.
 
 ## Git 협업
 

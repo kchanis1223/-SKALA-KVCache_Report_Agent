@@ -28,7 +28,8 @@
 | tech_analysis | dict[str, TechAnalysis] | research | 기술별 조사 결과 |
 | analyses | dict[str, list[Assessment]] | evaluate | 관점별 분리 쓰기, 같은 관점의 재실행은 교체 |
 | evidence | list[Evidence] | research / evaluate / additional_search; 향후 의미 검증자 | ID 기준 upsert |
-| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화. 상충 구조 추가는 #11 |
+| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화 |
+| synthesis_findings | list[SynthesisFinding] | synthesize | 설계서 4-7의 다섯 질문으로 탐지한 근거 연결 상충·trade-off |
 | missing_evidence | list[MissingEvidence] | validate | 검증 회차마다 전체 교체 |
 | retry_count | int | additional_search | 실제 추가 검색 회차마다 +1, 최대 2 |
 | report | str | report | 최종 Markdown |
@@ -41,7 +42,7 @@
 | --- | --- | --- |
 | 기술 조사 | selected_technologies | `research(technologies) -> (dict[str, TechAnalysis], list[Evidence])` |
 | 관점별 평가 | perspective, technologies, domain, tech_analysis, evidence | `assess(...) -> (list[Assessment], list[Evidence])` |
-| 종합 | analyses | synthesis. 외부 검색 없음 |
+| 종합 | analyses, evidence | `synthesis`와 `synthesis_findings`. 외부 검색 없음 |
 | 검증 | synthesis, evidence | 정규화한 synthesis, missing_evidence. 외부 검색 없음 |
 | 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신 |
 | 보고서 | synthesis, evidence, missing_evidence, 입력 기술·도메인, retry_count | report. 외부 검색 없음 |
@@ -65,7 +66,7 @@
 | StakeholderDetails | positions: gpu_vendor / memory_vendor / cloud_operator / open_source / investor별 stance·rationale·evidence_ids; overall |
 | DomainDetails | cost, sla_risk, operations: 설계서 축별 등급 또는 null; operational_risks |
 
-미확인 축은 null, 이해관계자 자료 없음은 명시적인 stance로 표현합니다. details의 perspective는 상위 Assessment와 일치해야 합니다. 축별 질문·집계·모든 주체의 출력 보장은 평가 Agent 구현(#5~#7)에 남습니다. 검증된 고유 URL이 2개 미만인 결과는 검증 단계에서 confidence=low가 됩니다.
+미확인 축은 null, 이해관계자 자료 없음은 명시적인 stance로 표현합니다. details의 perspective는 상위 Assessment와 일치해야 합니다. 축별 질문·집계는 #5/#6 평가 구현에, 관점별 완성도·5개 주체·근거 참조 검증은 #7의 EvaluationOutput에 적용되어 있습니다. 검증된 고유 URL이 2개 미만인 결과는 검증 단계에서 confidence=low가 됩니다.
 
 ## Evidence ID와 검증 책임
 
@@ -75,8 +76,12 @@ Evidence 발급 주체는 근거를 생성하는 research / 각 평가 provider�
 - ID가 같으면 excerpt·confidence·supports_claim 등의 최신 값으로 교체합니다. 지지가 철회된 False도 이전 True를 대체합니다.
 - 같은 ID에서 기술·주장·URL·chunk_id를 바꾸면 충돌 오류입니다. 새로운 주장 또는 출처에는 새 ID를 발급합니다.
 - `supports_claim`은 기본 False. 출처 수집 담당자는 검색 성공만으로 True로 설정하지 않습니다. 이준형 담당 검증 컴포넌트가 원문과 주장의 지지를 판정하고 동일 ID Evidence 업데이트를 반환합니다.
-- 현재 validation은 플래그와 참조 관계를 검사합니다. 실제 의미 검증과 그 호출 경로는 #11에서 구현합니다. 그 전에는 신뢰할 수 있는 검증된 fixture만 True로 사용합니다.
+- validation은 플래그와 Assessment·Signal 참조 관계를 검사합니다. 원문 의미 지지·중립성 판정은 provider가 수행해 동일 Evidence의 `supports_claim`으로 반영해야 하며, 외부 의미 검증 adapter의 호출 경로는 provider 구현과 함께 추가합니다. 그 전에는 신뢰할 수 있는 검증된 fixture만 True로 사용합니다.
 - 보고서는 최종 Assessment가 참조하고 supports_claim=True인 해당 기술의 근거만 인용합니다. URL dedup은 독립된 출처라는 보장은 아닙니다.
+
+## 종합 결과
+
+`SynthesisFinding`은 `technology_id`, 설계서 4-7 질문(`quality_stability`, `resource_cost`, `operational_complexity`, `maturity_adoption`, `condition_limited`), 요약, `assessment_refs`, `evidence_ids`를 갖습니다. 근거가 연결되지 않은 상충 후보는 결과에 넣지 않습니다. 현재 rule 기반 탐지는 Assessment에 명시된 조건·trade-off와 구조화된 TRL/시장성 세부 결과만 사용하며, 원문 의미 지지 판정은 Evidence를 만든 검증 컴포넌트가 `supports_claim`으로 반영합니다.
 
 ## RAG 반환과 점수
 
@@ -123,3 +128,15 @@ CLI는 `--graph`(컴파일된 그래프를 mermaid로 출력), `--dry-run`(외�
 `tests/fixtures/contracts.json`에 chunk, 점수 포함 검색 결과, evidence, tech_analysis, 정상 Assessment, pending Assessment, failed Assessment, MissingEvidence가 있습니다. 모두 실제 논문과 무관한 합성 데이터입니다. `make test`는 JSON round-trip, ID 중복 교체·철회, 관점별 실패·복구, 검색 점수 및 청킹 설정을 검사합니다.
 
 기존 provider 수정 사항: tech_analysis 문자열 → TechAnalysis, 검색 Chunk 목록 → RetrievalResult 목록, MissingEvidence 생성 시 kind/claim/queries 지정. 기존 rationale/excerpt 이름은 유지됩니다. 상세 schema와 설명은 이 문서를 기준으로 개발하고, 과거 설계서의 operator.add 및 별도 *_analysis 키는 참고 이력으로만 봅니다.
+
+## 공통 모델 배정
+
+`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search는 4B, trl/market/stakeholder/domain/validation/synthesis/report는 8B입니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
+
+## 이해관계자·도메인 구현 (#6)
+
+`EvaluationProvider(..., retriever=None)` 및 `build_provider(retriever=...)`로 도메인 논문 검색을 주입합니다. 도메인은 role/paper_id 제한 없이 검색하며 primary와 독립 reference를 포함합니다. 미연결 시 결과 rationale에 명시합니다. 이해관계자는 웹검색을 사용합니다. 공유 State와 Assessment/Evidence schema는 그대로 유지하며, 수치·실험 조건은 rationale과 연결된 Evidence 원문·페이지·chunk_id로 보존합니다. 자세한 집계 및 검증 범위는 [#6 실행 안내](issue-6-evaluation.md)를 참고하세요.
+
+## 공통 평가 경계 검증 (#7)
+
+`evaluation_contracts.EvaluationOutput`이 평가와 Evidence를 함께 검사합니다. 실제 EvaluationProvider는 선택 기술·관점 일치, 참조 존재·기술 일치, 세부 근거 포함 관계, assessed 축 완성도, 5개 주체와 집계 일관성을 검증하고 고유 참조 URL이 2개 미만이면 confidence를 low로 제한합니다. pending도 low입니다. 평가 관련 모델의 알 수 없는 필드와 공백만 있는 필수 문자열은 거부합니다. 기존 tuple 반환·State·입력 alias는 유지합니다. [상세 계약 및 예제](issue-7-evaluation-schema.md)를 참고하세요.

@@ -1,9 +1,46 @@
 {
-  "status": "unverified_design_candidates",
+  "status": "verified",
+  "verified_at": "2026-09-22",
   "embedding_model": "BAAI/bge-m3",
+  "page_budget": 200,
+  "total_pages": 61,
+  "note": "PDF 원문은 커밋하지 않습니다. 각자 url에서 data/raw/{paper_id}.pdf 이름으로 내려받으세요. sha256은 동일 판본 확인용입니다.",
   "documents": [
-    {"paper_id": "turboquant", "camp": "sw", "role": "primary", "url": "https://arxiv.org/abs/2504.19874"},
-    {"paper_id": "turboquant_analysis", "camp": "sw", "role": "reference", "url": "https://arxiv.org/abs/2605.08114"},
-    {"paper_id": "itme", "camp": "hw", "role": "primary", "url": "https://arxiv.org/abs/2606.12556"}
+    {
+      "paper_id": "turboquant",
+      "camp": "sw",
+      "role": "primary",
+      "title": "TurboQuant: Online Vector Quantization with Near-optimal Distortion Rate",
+      "url": "https://arxiv.org/abs/2504.19874",
+      "arxiv_version": "2504.19874v1",
+      "submitted": "2025-04-28",
+      "pages": 25,
+      "local_path": "data/raw/turboquant.pdf",
+      "sha256": "431eb13926e10491f5fbd0bebd0813c51bd6c1e884426a1500c5db640b2997ab"
+    },
+    {
+      "paper_id": "turboquant_analysis",
+      "camp": "sw",
+      "role": "reference",
+      "title": "Statistical Inference and Quality Measures of KV Cache Quantisations Inspired by TurboQuant",
+      "url": "https://arxiv.org/abs/2605.08114",
+      "arxiv_version": "2605.08114v1",
+      "submitted": "2026-04-27",
+      "pages": 23,
+      "local_path": "data/raw/turboquant_analysis.pdf",
+      "sha256": "4b5dade47bd2d3de44d94c10f5c80566ae701e8e43c5866d6ad0b92e9bd4a15b"
+    },
+    {
+      "paper_id": "itme",
+      "camp": "hw",
+      "role": "primary",
+      "title": "ITME: Inference Tiered Memory Expansion with Disaggregated CXL-Hybrid Memories",
+      "url": "https://arxiv.org/abs/2606.12556",
+      "arxiv_version": "2606.12556v2",
+      "submitted": "2026-06-16",
+      "pages": 13,
+      "local_path": "data/raw/itme.pdf",
+      "sha256": "c8f29ee52bfaef00bd2b26bf2e71e49eda394d6e85b7fc9975fa5fd9a24a94d7"
+    }
   ]
 }

@@ -27,7 +27,7 @@ class Provider(Protocol):
         tech_analysis: dict[str, TechAnalysis],
         evidence: list[Evidence],
     ) -> tuple[list[Assessment], list[Evidence]]:
-        """도메인: 전체 논문 RAG + 웹. 나머지 관점: 웹검색."""
+        """도메인: 논문 RAG + 웹. 실제 평가는 validate_evaluation_output으로 검증."""
         ...
 
     def search_missing(self, missing: list[MissingEvidence]) -> list[Evidence]: ...
