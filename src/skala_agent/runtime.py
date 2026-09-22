@@ -34,6 +34,12 @@ MEASURED_ASSESS_SECONDS = 300.0
 # lock이 모델별로 분리되면 이 곱셈은 불필요해집니다(모델 계층 과제).
 DEFAULT_TIMEOUT_SECONDS = MEASURED_ASSESS_SECONDS * len(PERSPECTIVES)
 
+# 근거 검증은 근거 1건당 모델 호출 1회입니다. 실측: 검증 단계가 12~49건에
+# 137~317초를 썼습니다(건당 4.6~12.9초). 상한을 건수와 무관하게 고정하면 근거가
+# 쌓일수록 검증이 상한을 넘기는데, 이 단계는 assess와 달리 관점 단위로 격리되지
+# 않아 한 번의 초과가 실행 전체를 중단시킵니다. 그래서 건수에 비례해 늘립니다.
+MEASURED_VALIDATE_SECONDS_PER_ITEM = 15.0
+
 # 한 관점에서 상한을 **연속으로** 넘긴 횟수가 이만큼이면 남은 재평가를 건너뜁니다.
 # 성공하면 0으로 되돌려, 느렸다가 회복한 관점을 영구 배제하지 않습니다.
 MAX_ABANDONED_CALLS = 2
@@ -97,6 +103,11 @@ class TimeoutProvider:
 
     `research`와 `search_missing`은 한 번에 하나씩만 실행돼 쌓이지 않고 실패 시
     중단이 이미 방침이라, 상한만 적용하고 차단하지 않습니다.
+
+    격리 범위가 단계마다 다릅니다. `assess`의 TimeoutError는 graph의 evaluate가
+    해당 관점의 실패로 흡수하지만, `validate_evidence`의 TimeoutError는 validate
+    노드를 그대로 통과해 실행 전체를 중단시킵니다. 검증은 근거 1건당 호출 1회라
+    근거가 쌓일수록 느려지므로, 상한을 건수에 비례해 늘려 이 차이를 보정합니다.
     """
 
     def __init__(
@@ -137,7 +148,9 @@ class TimeoutProvider:
         return call_with_timeout(self.inner.search_missing, self.seconds, missing)
 
     def validate_evidence(self, evidence):
-        return call_with_timeout(self.inner.validate_evidence, self.seconds, evidence)
+        # 근거 건수에 비례한 상한. 기본 상한보다 짧아지지는 않습니다.
+        seconds = max(self.seconds, MEASURED_VALIDATE_SECONDS_PER_ITEM * len(evidence))
+        return call_with_timeout(self.inner.validate_evidence, seconds, evidence)
 
 
 def _load_real_provider() -> Provider:
