@@ -123,3 +123,22 @@ def test_default_timeout_covers_measured_local_model_latency():
     from skala_agent.runtime import DEFAULT_TIMEOUT_SECONDS
 
     assert DEFAULT_TIMEOUT_SECONDS >= 600
+
+
+def test_default_timeout_covers_serialized_perspective_queue():
+    """상한이 직렬화된 관점 전체의 계산 시간을 덮는다.
+
+    ModelRouter가 모든 모델에 같은 lock을 공유해 추론이 직렬화되므로, 마지막
+    순서의 관점은 앞선 관점들의 계산 시간까지 상한 안에서 기다립니다. 상한이
+    관점 1건 기준으로만 잡히면 느려서가 아니라 순서가 늦어서 끊깁니다.
+
+    실측(qwen3:4b): 상한 900초에서 먼저 lock을 잡은 관점만 285.9초에 완주하고
+    나머지 세 관점은 계산을 시작하지 못한 채 상한에서 실패했습니다.
+    """
+    from skala_agent.runtime import (
+        DEFAULT_TIMEOUT_SECONDS,
+        MEASURED_ASSESS_SECONDS,
+        PERSPECTIVES,
+    )
+
+    assert DEFAULT_TIMEOUT_SECONDS >= MEASURED_ASSESS_SECONDS * len(PERSPECTIVES)
