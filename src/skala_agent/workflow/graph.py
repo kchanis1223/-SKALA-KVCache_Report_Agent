@@ -202,9 +202,12 @@ def build_graph(provider: Provider | None = None):
             if state["retry_count"] == 0
             else sorted({m.perspective for m in state["missing_evidence"] if m.retryable})
         )
+        # "병렬"이라고 적었더니 실제 추론이 직렬인 사실이 로그에서 가려졌습니다.
+        # 그래프가 하는 일은 fan-out(대상 선정과 분기)까지이고, 동시 실행 여부는
+        # 모델 계층의 lock이 결정합니다. 로그는 그래프가 보장하는 것만 말합니다.
         logger.info(
             "관점 %s 실행: %s",
-            "병렬" if state["retry_count"] == 0 else f"재평가({state['retry_count']}회차)",
+            "fan-out" if state["retry_count"] == 0 else f"재평가({state['retry_count']}회차)",
             ", ".join(targets) or "없음",
         )
         return [Send("evaluate", {"perspective": key, "state": state}) for key in targets]

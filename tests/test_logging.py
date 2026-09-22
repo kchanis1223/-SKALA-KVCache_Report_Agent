@@ -12,7 +12,7 @@ def test_run_logs_fan_out_retry_and_report(caplog):
     messages = [r.getMessage() for r in caplog.records]
 
     assert any("논문 조사 완료" in m for m in messages)
-    assert any("관점 병렬 실행: trl, market, stakeholder, domain" in m for m in messages)
+    assert any("관점 fan-out 실행: trl, market, stakeholder, domain" in m for m in messages)
     assert sum("평가 완료" in m for m in messages) == 12  # 4관점 × (최초 1회 + 재평가 2회)
     assert any("관점 재평가(1회차) 실행" in m for m in messages)
     assert any("관점 재평가(2회차) 실행" in m for m in messages)

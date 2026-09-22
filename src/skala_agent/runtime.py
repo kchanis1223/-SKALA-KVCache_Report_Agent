@@ -9,6 +9,7 @@ from collections import Counter
 from typing import Literal, get_args
 
 from skala_agent.providers import DemoProvider, Provider
+from skala_agent.schemas import PERSPECTIVES
 
 Mode = Literal["demo", "real"]
 MODES: tuple[Mode, ...] = get_args(Mode)
@@ -16,13 +17,22 @@ MODES: tuple[Mode, ...] = get_args(Mode)
 ADAPTER_MODULE = "skala_agent.adapters"
 ADAPTER_FACTORY = "build_provider"
 
+# 관점 1건의 계산 시간 실측값(qwen3:4b). 상한 계산의 기준값입니다.
+MEASURED_ASSESS_SECONDS = 300.0
+
 # 외부 서비스 호출 1건의 상한. 0 이하이면 상한을 걸지 않습니다.
 #
-# 로컬 오픈웨이트 모델(qwen3:8b) 실측: 관점 1건이 295~600초 이상을 씁니다.
-# ModelRouter가 두 모델에 같은 lock을 공유해 추론이 직렬화되므로, 병렬 fan-out
-# 이후에도 뒤에 선 관점은 대기 시간까지 함께 감당해야 합니다. 120초는 정상 호출도
-# 끊어버려 네 관점 전부가 실패했습니다.
-DEFAULT_TIMEOUT_SECONDS = 900.0
+# ModelRouter가 모든 모델에 같은 lock을 공유하므로 추론이 직렬화됩니다. 그래서
+# 병렬 fan-out으로 관점을 동시에 띄워도 실제 추론은 한 줄로 서고, 뒤에 선 관점은
+# 자기 계산 시간뿐 아니라 앞선 관점들의 계산 시간까지 상한 안에서 감당합니다.
+#
+# 실측: 먼저 lock을 잡은 관점은 285.9초에 완주했지만 뒤에 선 세 관점은 계산을
+# 시작하지도 못한 채 300초 상한에서 전부 끊겼습니다. 상한이 대기 시간을 덮지
+# 못하면 "느린 관점"이 아니라 "줄 뒤에 선 관점"을 끊게 됩니다.
+#
+# 따라서 상한은 관점 1건이 아니라 직렬화된 관점 전체의 계산 시간을 덮어야 합니다.
+# lock이 모델별로 분리되면 이 곱셈은 불필요해집니다(모델 계층 과제).
+DEFAULT_TIMEOUT_SECONDS = MEASURED_ASSESS_SECONDS * len(PERSPECTIVES)
 
 # 한 관점에서 상한을 **연속으로** 넘긴 횟수가 이만큼이면 남은 재평가를 건너뜁니다.
 # 성공하면 0으로 되돌려, 느렸다가 회복한 관점을 영구 배제하지 않습니다.
