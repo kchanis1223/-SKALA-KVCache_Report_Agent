@@ -103,7 +103,10 @@ def _generated_findings(state, model):
                 "allowed_assessment_refs에 그대로 있는 [perspective, technology_id] "
                 "쌍이어야 하며 순서를 바꾸지 마세요. 한 finding의 technology_id는 그 "
                 "finding이 참조하는 모든 ref의 technology_id와 같아야 합니다. "
-                "supports_claim=true Evidence ID만 사용하고, 근거 없는 항목은 생략하세요."
+                "supports_claim=true Evidence ID만 사용하고, 근거 없는 항목은 생략하세요.\n"
+                "summary는 반드시 한국어 서술문으로 쓰세요. 근거가 영어 원문이어도 "
+                "summary는 한국어로 옮겨 적습니다. 기술명·제품명·지표명(TTFT, TPOT, "
+                "vLLM, CXL 등)과 수치는 원문 표기를 유지하세요."
             ),
         },
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
