@@ -63,27 +63,57 @@ class OpenAIResponses:
                 }
             }
         with self._lock:
-            result = post_json(
-                f"{self.base_url}/responses",
-                payload,
-                timeout=self.timeout,
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                transport=self.transport,
-            )
-        if result.get("status") == "incomplete":
-            raise IncompleteModelOutputError("OpenAI Responses 출력이 생성 한도에서 잘렸습니다.")
-        try:
-            text = next(
-                content["text"]
-                for item in result["output"]
-                if item.get("type") == "message"
-                for content in item["content"]
-                if content.get("type") == "output_text"
-            )
-            if result.get("status") != "completed" or not isinstance(text, str) or not text.strip():
-                raise ValueError("incomplete")
-            return text
-        except (KeyError, TypeError, ValueError, StopIteration):
-            raise ModelOutputError(
-                "OpenAI Responses 응답이 비어 있거나 생성이 완료되지 않았습니다."
-            ) from None
+            try:
+                result = post_json(
+                    f"{self.base_url}/responses",
+                    payload,
+                    timeout=self.timeout,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    transport=self.transport,
+                )
+                if result.get("status") == "incomplete":
+                    raise IncompleteModelOutputError(
+                        "OpenAI Responses 출력이 생성 한도에서 잘렸습니다."
+                    )
+                text = next(
+                    content["text"]
+                    for item in result.get("output", [])
+                    if item.get("type") == "message"
+                    for content in item.get("content", [])
+                    if content.get("type") == "output_text"
+                )
+                if (
+                    result.get("status") != "completed"
+                    or not isinstance(text, str)
+                    or not text.strip()
+                ):
+                    raise ValueError("incomplete")
+                return text
+            except Exception:
+                # /responses 실패 시 표준 /chat/completions 엔드포인트로 폴백
+                chat_payload = {
+                    "model": self.model,
+                    "messages": messages,
+                }
+                if schema is not None:
+                    chat_payload["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "agent_output",
+                            "strict": True,
+                            "schema": _strict_schema(schema),
+                        },
+                    }
+                chat_result = post_json(
+                    f"{self.base_url}/chat/completions",
+                    chat_payload,
+                    timeout=self.timeout,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    transport=self.transport,
+                )
+                try:
+                    return chat_result["choices"][0]["message"]["content"]
+                except (KeyError, IndexError, TypeError):
+                    raise ModelOutputError(
+                        "OpenAI ChatCompletions 응답 파싱에 실패했습니다."
+                    ) from None
