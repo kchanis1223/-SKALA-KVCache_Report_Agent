@@ -2,7 +2,7 @@
 
 TurboQuant(SW)와 ITME(HW)를 데이터센터·클라우드 서빙 관점에서 비교하는 Agentic RAG 프로젝트의 협업용 뼈대입니다.
 
-**현재는 API 키 없이 실행되는 개발용 workflow입니다.** 실제 PDF 검색, BGE-M3 임베딩, VectorDB, LLM 평가와 웹검색은 연결 전입니다. 기본 provider는 결과를 만들어내지 않고 `판단 보류`를 반환합니다. 설계서의 기술 주장·논문 ID·성능 수치는 검증된 사실로 사용하지 않습니다.
+**기본 실행은 API 키 없는 개발용 workflow입니다.** TRL·시장성은 로컬 Qwen3 + Tavily provider를 별도로 사용할 수 있습니다. PDF 검색, BGE-M3, VectorDB, 나머지 관점과 최종 의미 검증은 구현 대기입니다. 기본 provider는 결과를 만들어내지 않고 `판단 보류`를 반환합니다. 설계서의 기술 주장·논문 ID·성능 수치는 검증된 사실로 사용하지 않습니다.
 
 ## 빠른 시작
 
@@ -20,6 +20,16 @@ make lint
 ```bash
 uv run skala-agent --output outputs/my-report.md
 ```
+
+## TRL·시장성 실제 평가 (이슈 #5)
+
+```bash
+uv sync --locked --extra local
+export TAVILY_API_KEY='실제-검색-API-키'
+uv run --extra local skala-evaluate --perspective all
+```
+
+Qwen3를 Transformers로 Python에서 직접 실행합니다. 최초 호출 시 모델을 다운로드합니다. 모델 교체는 `--model Qwen/Qwen3-1.7B` 또는 `model = TransformersQwen(model_id="...")`로 지정합니다. 출력은 `outputs/evaluations.json`의 **검증 전 잠정 평가**입니다. 설정·평가 규칙·한계는 [이슈 #5 실행 안내](docs/issue-5-evaluation.md)를 참고하세요.
 
 ## 구성
 
@@ -89,7 +99,7 @@ flowchart TD
 3. 윤소영: provider를 `build_graph(provider)`에 주입하고 실제 데이터 통합. 필요하면 checkpoint·실행 로그·오류 처리 추가.
 4. 이준형: 설계서 4-7 상충 탐지, 문장별 근거 검증·중립성 검사, 참고문헌 서식과 보고서 본문 구현.
 
-`prompts/*.md`는 참고 초안이며 현재 demo는 읽지 않습니다. 실제 provider에서 읽고 structured output schema와 함께 적용해야 합니다. 실제 모델·검색 provider 및 VectorDB 제품은 아직 고정하지 않았습니다.
+`prompts/trl.md`와 `market.md`는 실제 평가 provider가 읽습니다. 나머지 프롬프트는 참고 초안이며 demo는 읽지 않습니다. 실제 provider에서 읽고 structured output schema와 함께 적용해야 합니다. 이슈 #5는 로컬 Qwen3·Tavily를 사용하며 model/search 객체는 교체할 수 있습니다. VectorDB 제품은 미정입니다.
 
 ## Git 협업
 

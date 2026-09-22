@@ -3,10 +3,21 @@ name = "skala-agent"
 version = "0.1.0"
 description = "KV cache 기술 비교를 위한 Agentic RAG 협업 뼈대"
 requires-python = ">=3.11,<3.15"
-dependencies = ["langgraph>=1.0,<2", "pydantic>=2.10,<3"]
+dependencies = [
+    "httpx>=0.28,<1",
+    "langgraph>=1.0,<2",
+    "pydantic>=2.10,<3",
+]
 
 [project.scripts]
 skala-agent = "skala_agent.cli:main"
+skala-evaluate = "skala_agent.evaluate_cli:main"
+
+[project.optional-dependencies]
+local = [
+    "torch>=2.6,<3",
+    "transformers>=4.51,<5",
+]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
