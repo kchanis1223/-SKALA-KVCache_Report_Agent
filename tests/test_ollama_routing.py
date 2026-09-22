@@ -122,9 +122,22 @@ def test_actual_evaluation_requests_use_selected_model(main_model, expected):
         body = json.loads(request.content)
         calls.append(body["model"])
         payload = json.loads(body["messages"][1]["content"])
-        if "claim" in payload:
+        if "evidence" in payload:
             return httpx.Response(
-                200, json={"done": True, "message": {"content": '{"supports_claim": false}'}}
+                200,
+                json={
+                    "done": True,
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "results": [
+                                    {"id": e["id"], "supports_claim": False}
+                                    for e in payload["evidence"]
+                                ]
+                            }
+                        )
+                    },
+                },
             )
         output = {
             "findings": [

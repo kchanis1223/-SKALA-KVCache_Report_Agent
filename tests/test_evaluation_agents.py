@@ -41,8 +41,10 @@ class ModelFixture:
     def invoke(self, messages):
         self.calls.append(messages)
         payload = json.loads(messages[1]["content"])
-        if "claim" in payload:
-            return json.dumps({"supports_claim": False})
+        if "evidence" in payload:
+            return json.dumps(
+                {"results": [{"id": e["id"], "supports_claim": False} for e in payload["evidence"]]}
+            )
         findings = []
         for q in payload["questions"]:
             answer = (
@@ -217,7 +219,10 @@ def test_retry_search_candidates_reach_model_and_ids_remain_stable():
 def test_provider_updates_supports_claim_without_changing_evidence_id():
     class ClaimModel:
         def invoke_structured(self, messages, schema):
-            return json.dumps({"supports_claim": True})
+            payload = json.loads(messages[1]["content"])
+            return json.dumps(
+                {"results": [{"id": e["id"], "supports_claim": True} for e in payload["evidence"]]}
+            )
 
     provider = EvaluationProvider(ClaimModel(), SearchFixture())
     evidence = Evidence(
