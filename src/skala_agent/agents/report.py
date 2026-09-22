@@ -78,11 +78,71 @@ def _refine(base, model):
     return report
 
 
-def run(state, provider=None):
-    lines = [
+def _header(run_mode):
+    """실행 모드에 따라 제목과 서두 안내를 고른다.
+
+    이전에는 모드와 무관하게 "개발용 뼈대"와 "실제 기술 평가 보고서가
+    아닙니다"를 고정 출력했습니다. real provider는 주장·발췌 지지 여부를
+    실제로 검증하므로 출력이 동작과 어긋났습니다. 모드는 State가 명시적으로
+    전달하며 근거 수나 문구로 추측하지 않습니다.
+    """
+    if run_mode == "real":
+        return [
+            "# KV cache 기술 비교 보고서",
+            "",
+            "> 실제 평가 실행 결과입니다. 판정은 지지 여부가 검증된 근거에만 기반하며, "
+            "근거가 부족한 항목은 판단 보류로 남습니다.",
+        ]
+    return [
         "# KV cache 기술 비교 보고서 — 개발용 뼈대",
         "",
-        "> 자동 생성 템플릿입니다. 실제 기술 평가 보고서가 아닙니다.",
+        "> 합성 fixture로 만든 개발용 출력입니다. 실제 기술 평가 결과가 아닙니다.",
+    ]
+
+
+def _limitations(state):
+    """실제 검증 수행 여부와 미해결 항목을 사실대로 적는다.
+
+    "의미적 근거 검증과 중립성 검사는 추가 구현 필요"를 고정 출력하고 있었지만
+    real provider는 validate_evidence로 이미 지지 여부를 판정합니다. 반대로
+    demo는 검증을 수행하지 않습니다. 양쪽 모두 과장 없이 적습니다.
+    """
+    evidence = state["evidence"]
+    verified = [item for item in evidence if item.supports_claim]
+    # analyses는 보고서 본문이 쓰지 않는 값이라 없을 수도 있습니다.
+    failed = [
+        item
+        for values in state.get("analyses", {}).values()
+        for item in values
+        if item.status == "failed"
+    ]
+    lines = ["## 6. 한계점", ""]
+    if state["run_mode"] == "real":
+        lines += [
+            f"- 근거 검증: 수집한 근거 {len(evidence)}건 중 {len(verified)}건이 "
+            "주장 지지 판정을 통과했습니다.",
+            "- 지지 판정과 중립성 판단은 같은 모델 호출에서 함께 이뤄지며, "
+            "별도 검사로 분리되어 있지 않습니다.",
+        ]
+    else:
+        lines += [
+            "- 근거 검증을 수행하지 않았습니다. demo provider는 지지 여부를 "
+            "판정하지 않으므로 아래 항목은 모두 미검증입니다.",
+        ]
+    if failed:
+        lines.append(f"- 평가 실패로 판단 보류한 항목 {len(failed)}건이 있습니다.")
+    if state["missing_evidence"]:
+        lines.append(
+            f"- 근거가 부족해 해결되지 않은 항목 {len(state['missing_evidence'])}건 "
+            f"(재검색 {state['retry_count']}회 수행):"
+        )
+    else:
+        lines.append("- 근거가 부족해 남은 항목은 없습니다.")
+    return lines
+
+
+def run(state, provider=None):
+    lines = _header(state["run_mode"]) + [
         "",
         "## SUMMARY",
         "",
@@ -217,10 +277,8 @@ def run(state, provider=None):
         "검증된 4장 판정과 위 trade-off를 함께 검토하며, 판단 보류 항목은 "
         "추가 근거를 확보한 뒤 결정한다.",
         "",
-        "## 6. 한계점",
-        "",
-        "의미적 근거 검증과 중립성 검사는 추가 구현 필요.",
     ]
+    lines += _limitations(state)
     lines += [f"- {m.technology_id}/{m.perspective}: {m.reason}" for m in state["missing_evidence"]]
     lines += ["", "## REFERENCE", ""]
     for index, (url, item) in enumerate(used.items(), start=1):

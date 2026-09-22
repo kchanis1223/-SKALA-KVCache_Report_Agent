@@ -28,7 +28,8 @@
 | tech_analysis | dict[str, TechAnalysis] | research | 기술별 조사 결과 |
 | analyses | dict[str, list[Assessment]] | evaluate | 관점별 분리 쓰기, 같은 관점의 재실행은 교체 |
 | evidence | list[Evidence] | research / evaluate / additional_search; 향후 의미 검증자 | ID 기준 upsert |
-| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화. 최종 종합 재계산은 이 값을 덮지 않음 |
+| run_mode | Literal["demo", "real"] | initial_state | 실행 모드. 보고서가 제목·안내·한계점을 고를 때 사용하며 근거 수로 추측하지 않음 |
+| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화 |
 | synthesis_findings | list[SynthesisFinding] | synthesize | 설계서 4-7의 다섯 질문으로 탐지한 근거 연결 상충·trade-off |
 | missing_evidence | list[MissingEvidence] | validate | 검증 회차마다 전체 교체 |
 | retry_count | int | additional_search | 실제 추가 검색 회차마다 +1, 최대 2 |
