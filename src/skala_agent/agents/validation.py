@@ -47,5 +47,22 @@ def run(state):
                     retryable=item.error.retryable if item.error else True,
                 )
             )
-    # TODO(이준형): 문장별 entailment·중립성·질문별 등급 검증 추가.
+            continue
+        for signal in item.signals:
+            signal_sources = {
+                str(e.url): e for e in sources.values() if e.id in signal.evidence_ids
+            }
+            if not signal_sources:
+                missing.append(
+                    MissingEvidence(
+                        technology_id=item.technology_id,
+                        perspective=item.perspective,
+                        reason="질문별 판정을 지지하는 검증된 출처 없음",
+                        kind="unsupported_claim",
+                        claim=signal.question,
+                        queries=[f"{item.technology_id} {item.perspective} {signal.question}"],
+                        evidence_ids=signal.evidence_ids,
+                    )
+                )
+    # 원문 entailment·중립성 판정은 provider가 Evidence.supports_claim에 반영한다.
     return {"missing_evidence": missing, "synthesis": normalized}

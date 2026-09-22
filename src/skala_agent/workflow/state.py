@@ -1,6 +1,13 @@
 from typing import Annotated, TypedDict
 
-from skala_agent.schemas import Assessment, Evidence, MissingEvidence, TechAnalysis, Technology
+from skala_agent.schemas import (
+    Assessment,
+    Evidence,
+    MissingEvidence,
+    SynthesisFinding,
+    TechAnalysis,
+    Technology,
+)
 
 
 def merge_analyses(left: dict, right: dict) -> dict:
@@ -32,5 +39,6 @@ class EvaluationState(TypedDict):
     evidence: Annotated[list[Evidence], merge_evidence]
     missing_evidence: list[MissingEvidence]
     synthesis: list[Assessment]
+    synthesis_findings: list[SynthesisFinding]
     retry_count: int
     report: str

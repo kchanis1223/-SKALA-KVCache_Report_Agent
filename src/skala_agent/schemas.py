@@ -143,6 +143,22 @@ class MissingEvidence(BaseModel):
     retryable: bool = True
 
 
+class SynthesisFinding(BaseModel):
+    """설계서 4-7 질문으로 확인된, 근거 추적 가능한 상충 또는 trade-off."""
+
+    technology_id: str
+    question: Literal[
+        "quality_stability",
+        "resource_cost",
+        "operational_complexity",
+        "maturity_adoption",
+        "condition_limited",
+    ]
+    summary: str
+    assessment_refs: list[tuple[Perspective, str]] = Field(min_length=1)
+    evidence_ids: list[str] = Field(min_length=1)
+
+
 class Chunk(BaseModel):
     id: str
     text: str
