@@ -1,0 +1,167 @@
+{
+  "metrics": {
+    "hit@1": 0.75,
+    "hit@3": 0.85,
+    "mrr": 0.8125
+  },
+  "model": "BAAI/bge-m3",
+  "top_k": 10,
+  "role": null,
+  "exclude_references": true,
+  "index": {
+    "created_at": "2026-09-22T04:54:45+00:00",
+    "embedding_model": "BAAI/bge-m3",
+    "chunking": {
+      "version": "v1",
+      "tokenizer": "BAAI/bge-m3",
+      "chunk_size_tokens": 1500,
+      "overlap_tokens": 200
+    },
+    "tokenizer": "BAAI/bge-m3",
+    "chunk_count": 69,
+    "dimension": 1024,
+    "documents": [
+      {
+        "paper_id": "turboquant",
+        "role": "primary",
+        "camp": "sw",
+        "pages": 25
+      },
+      {
+        "paper_id": "turboquant_analysis",
+        "role": "reference",
+        "camp": "sw",
+        "pages": 23
+      },
+      {
+        "paper_id": "itme",
+        "role": "primary",
+        "camp": "hw",
+        "pages": 13
+      }
+    ]
+  },
+  "eval_set_version": "v1",
+  "per_query": [
+    {
+      "id": "q01",
+      "query": "무작위 회전을 이용한 2단계 양자화의 핵심 아이디어는 무엇인가",
+      "rank": 1,
+      "top1": "turboquant-p3-1"
+    },
+    {
+      "id": "q02",
+      "query": "벡터 양자화 이론의 초기 연구와 선행 연구 정리",
+      "rank": 1,
+      "top1": "turboquant-p4-1"
+    },
+    {
+      "id": "q03",
+      "query": "하이퍼스피어 균등분포의 엔트로피로 유도한 왜곡 하한",
+      "rank": 2,
+      "top1": "turboquant-p7-1"
+    },
+    {
+      "id": "q04",
+      "query": "MSE에 최적화된 양자화 알고리즘의 의사코드",
+      "rank": 1,
+      "top1": "turboquant-p10-1"
+    },
+    {
+      "id": "q05",
+      "query": "비트폭 1비트에서 4비트까지의 MSE 왜곡 수치",
+      "rank": 1,
+      "top1": "turboquant-p11-1"
+    },
+    {
+      "id": "q06",
+      "query": "내적에 최적화된 양자화 알고리즘의 의사코드",
+      "rank": 2,
+      "top1": "turboquant-p14-1"
+    },
+    {
+      "id": "q07",
+      "query": "LongBench 과제별 정확도를 KIVI와 비교한 표",
+      "rank": 1,
+      "top1": "turboquant-p20-1"
+    },
+    {
+      "id": "q08",
+      "query": "GloVe와 OpenAI 임베딩에서 PQ, RabitQ와 재현율 비교",
+      "rank": 0,
+      "top1": "turboquant-p19-1"
+    },
+    {
+      "id": "q09",
+      "query": "회전과 QJL 잔차 보정으로 이루어진 2단계 파이프라인",
+      "rank": 4,
+      "top1": "turboquant_analysis-p7-1"
+    },
+    {
+      "id": "q10",
+      "query": "KV, KQV, QKQV 세 가지 양자화 스킴의 정의",
+      "rank": 0,
+      "top1": "turboquant_analysis-p1-1"
+    },
+    {
+      "id": "q11",
+      "query": "키에 QJL을 적용할 때 내적 추정 분산이 증가하는 비율",
+      "rank": 1,
+      "top1": "turboquant_analysis-p8-1"
+    },
+    {
+      "id": "q12",
+      "query": "6차원 오차 벡터의 정의와 구성 요소",
+      "rank": 1,
+      "top1": "turboquant_analysis-p9-1"
+    },
+    {
+      "id": "q13",
+      "query": "실험 설정과 오차 지표를 스칼라로 집계하는 방법",
+      "rank": 1,
+      "top1": "turboquant_analysis-p11-1"
+    },
+    {
+      "id": "q14",
+      "query": "실험에 사용한 키 분포 세 가지와 선택 이유",
+      "rank": 1,
+      "top1": "turboquant_analysis-p12-1"
+    },
+    {
+      "id": "q15",
+      "query": "LLM 데이터 유형별 예측 가능성과 목표 메모리 계층",
+      "rank": 1,
+      "top1": "itme-p2-1"
+    },
+    {
+      "id": "q16",
+      "query": "CXL 하이브리드 메모리의 하드웨어 구성 요소",
+      "rank": 1,
+      "top1": "itme-p4-1"
+    },
+    {
+      "id": "q17",
+      "query": "내부 채널 구성에 따른 대역폭 이상치와 실측치",
+      "rank": 1,
+      "top1": "itme-p5-1"
+    },
+    {
+      "id": "q18",
+      "query": "커널 pagemap 인터페이스로 물리 주소를 얻는 절차",
+      "rank": 1,
+      "top1": "itme-p5-2"
+    },
+    {
+      "id": "q19",
+      "query": "원격 매니저가 추론 주기에 맞춰 데이터를 관리하는 방식",
+      "rank": 1,
+      "top1": "itme-p7-2"
+    },
+    {
+      "id": "q20",
+      "query": "FPGA 프로토타입에서 스테이징 버퍼 크기에 따른 성능 저하",
+      "rank": 1,
+      "top1": "itme-p10-2"
+    }
+  ]
+}
