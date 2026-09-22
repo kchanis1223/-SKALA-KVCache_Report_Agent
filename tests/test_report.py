@@ -422,7 +422,9 @@ def test_partial_signal_gap_keeps_the_verified_verdict_and_lists_every_gap():
 
     assert "turboquant / trl: TRL 5" in report
     assert "turboquant / trl: 판단 보류" not in report
-    assert "근거 부족 질문: 상용 배포 사례가 있는가" in report
+    # 본문에는 건수와 대표 항목만 남기고 전체 목록은 6장으로 보냅니다.
+    assert "근거 부족 질문 3/2건" in report or "근거 부족 질문" in report
+    assert "상용 배포 사례가 있는가" in report
     assert "독립 재현 결과가 있는가" in report
 
 
@@ -534,3 +536,65 @@ def test_chapter_five_uses_the_same_validity_rule_as_chapter_four():
     # 4장에서 확정된 판정이므로 5.1 공통 판정에도 나타납니다.
     assert "검증된 공통 판정 없음." not in report
     assert "- trl: TRL 5 (기술: turboquant, itme)" in report
+
+
+def test_question_labels_hide_internal_ids_and_answers():
+    """본문에는 내부 질문 ID와 응답값을 노출하지 않는다."""
+    from skala_agent.agents.report import _question_label
+
+    raw = "[trl_1] KV cache 최적화 기초 원리·아이디어가 제시되었는가? (응답: yes)"
+    assert _question_label(raw) == "KV cache 최적화 기초 원리·아이디어가 제시되었는가?"
+    assert _question_label("평범한 질문") == "평범한 질문"
+
+
+def test_chapter_four_collapses_duplicate_gap_lists_into_a_count():
+    """미지지 Signal과 Signal 단위 부족은 같은 집합이라 한 줄로 접는다.
+
+    둘 다 나열하면 판정 한 줄 밑에 같은 내용이 두 번씩 쌓여 본문이 묻힙니다.
+    """
+    assessment = Assessment(
+        technology_id="turboquant",
+        perspective="trl",
+        verdict="TRL 5",
+        rationale="verified fixture",
+        status="assessed",
+        evidence_ids=["e-1"],
+        signals=[
+            _signal("[trl_1] 프로토타입 검증이 있는가? (응답: yes)", ["e-1"]),
+            _signal("[trl_2] 상용 배포 사례가 있는가? (응답: yes)", ["nope"]),
+        ],
+    )
+    gaps = [_gap("[trl_2] 상용 배포 사례가 있는가? (응답: yes)", "검증된 출처 없음")]
+
+    report = run(_state(assessment, [_evidence("e-1", "https://example.org/a")], gaps))["report"]
+    chapter4 = report.split("## 4. 관점별 평가")[1].split("## 5.")[0]
+
+    assert "turboquant / trl: TRL 5" in chapter4
+    # 같은 질문이 "근거 부족 질문"과 "부족"으로 두 번 실리지 않습니다.
+    assert chapter4.count("상용 배포 사례가 있는가") == 1
+    assert "[trl_2]" not in chapter4
+    assert "(응답: yes)" not in chapter4
+
+
+def test_chapter_six_groups_repeated_gap_reasons():
+    """같은 (기술/관점, 사유)가 반복되면 건수로 접는다."""
+    assessment = _assessment(["e-1"])
+    gaps = [_gap("질문 %d" % n, "질문별 판정을 지지하는 검증된 출처 없음") for n in range(5)]
+
+    report = run(_state(assessment, [_evidence("e-1", "https://example.org/a")], gaps))["report"]
+    chapter6 = report.split("## 6. 한계점")[1].split("## REFERENCE")[0]
+
+    assert chapter6.count("turboquant/trl: 질문별 판정을 지지하는 검증된 출처 없음") == 1
+    assert "(5건)" in chapter6
+
+
+def test_summary_leads_with_the_verdict_tally():
+    """SUMMARY 첫 줄이 판정 집계다. 결론을 보려고 4장까지 내려가지 않는다."""
+    report = run(_state(_assessment(["e-1"]), [_evidence("e-1", "https://example.org/a")]))[
+        "report"
+    ]
+    summary = report.split("## SUMMARY")[1].split("## 1.")[0]
+
+    assert "판정 1건" in summary
+    assert "turboquant/trl=TRL 5" in summary
+    assert "평가 도메인" in summary
