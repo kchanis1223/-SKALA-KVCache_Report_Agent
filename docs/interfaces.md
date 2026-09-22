@@ -78,6 +78,8 @@ Evidence 발급 주체는 근거를 생성하는 research / 각 평가 provider�
 - 같은 ID에서 기술·주장·URL·chunk_id를 바꾸면 충돌 오류입니다. 새로운 주장 또는 출처에는 새 ID를 발급합니다.
 - `supports_claim`은 기본 False. 출처 수집 담당자는 검색 성공만으로 True로 설정하지 않습니다. 검증 provider는 원문 발췌와 주장을 비교해 지지·중립성을 판정하고 동일 ID Evidence 업데이트를 반환합니다.
 - validation은 provider 업데이트와 Assessment·Signal 참조 관계를 함께 검사합니다. provider가 없거나 demo 모드이면 기존 플래그만 검사합니다.
+보고서 4장과 5장은 같은 유효성 규칙을 씁니다. 결론을 확정하지 않는 조건은 넷입니다. (1) `status`가 `assessed`가 아님(pending·failed), (2) 그 기술의 검증된 출처가 하나도 없음, (3) Signal이 있는데 지지되는 Signal이 하나도 없음, (4) Assessment 전체에 대한 부족 항목이 남아 있음. 부족 항목은 `claim`이 `verdict`(또는 실패 시 `rationale`)와 같으면 Assessment 전체 부족, 질문 텍스트면 Signal 단위 부족입니다. **일부 질문만 부족한 경우 판정을 지우지 않고 부족 질문을 함께 표시합니다.** 같은 (기술, 관점)에 부족 사유가 여러 개면 모두 남깁니다.
+
 - 보고서는 최종 Assessment가 참조하고 supports_claim=True인 해당 기술의 근거만 인용합니다. URL dedup은 독립된 출처라는 보장은 아닙니다.
 
 ## 종합 결과
