@@ -1,10 +1,8 @@
 """4개 관점 평가 provider. 모델 객체만 주입하여 로컬/API 구현을 교체합니다."""
 
-import json
 import logging
 
-from pydantic import BaseModel, ValidationError
-
+from skala_agent.agents.evidence_validation import EvidenceValidator
 from skala_agent.agents.paper_research import research_technologies
 from skala_agent.agents.web_evaluation import SUPPORTED, WebEvaluator
 from skala_agent.evaluation_contracts import validate_evaluation_output
@@ -17,10 +15,6 @@ from skala_agent.schemas import AgentError, Assessment, Evidence
 logger = logging.getLogger(__name__)
 
 
-class ClaimSupport(BaseModel):
-    supports_claim: bool
-
-
 class EvaluationProvider(DemoProvider):
     # 1회 재검색에서 (기술, 관점) 그룹당 허용하는 검색 질의 수.
     # 외부 backoff는 workflow 담당 범위입니다.
@@ -29,6 +23,7 @@ class EvaluationProvider(DemoProvider):
     def __init__(self, model=None, search=None, *, models=None, retriever=None):
         if search is None or (model is None) == (models is None):
             raise ValueError("search와 model 또는 models 중 하나를 지정하세요.")
+        self._evidence_validator = EvidenceValidator()
         self.models = models
         self.validation_model = models.for_agent("validation") if models is not None else model
         self.synthesis_model = (
@@ -59,52 +54,8 @@ class EvaluationProvider(DemoProvider):
         return research_technologies(technologies, self.retriever, self.research_model)
 
     def validate_evidence(self, evidence):
-        """원문 발췌가 주장 자체를 직접·중립적으로 지지하는지 판정한다."""
-        updates = []
-        for item in evidence:
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "주장과 원문 발췌를 비교하세요. 발췌가 주장을 직접 지지하고 "
-                        "홍보성·추측성 표현 없이 중립적으로 서술할 때만 supports_claim을 true로 "
-                        "반환하세요. 그 외에는 false입니다. JSON만 반환하세요."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {"claim": item.claim, "excerpt": item.excerpt}, ensure_ascii=False
-                    ),
-                },
-            ]
-            for attempt in range(2):
-                response = (
-                    self.validation_model.invoke_structured(
-                        messages, ClaimSupport.model_json_schema()
-                    )
-                    if hasattr(self.validation_model, "invoke_structured")
-                    else self.validation_model.invoke(messages)
-                )
-                text = response if isinstance(response, str) else getattr(response, "content", None)
-                try:
-                    verdict = ClaimSupport.model_validate_json(text)
-                    updates.append(
-                        item.model_copy(update={"supports_claim": verdict.supports_claim})
-                    )
-                    break
-                except (ValidationError, TypeError, ValueError):
-                    if attempt == 1:
-                        raise ModelOutputError(
-                            "근거 지지 판정 모델이 두 번 연속 유효한 출력을 반환하지 않았습니다."
-                        ) from None
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": "supports_claim 불리언만 담은 유효한 JSON을 반환하세요.",
-                        }
-                    )
-        return updates
+        """동일 입력은 재사용하고 신규·변경 근거만 배치 검증합니다."""
+        return self._evidence_validator.validate(evidence, self.validation_model)
 
     def assess(self, perspective, technologies, domain, tech_analysis, evidence):
         if perspective not in SUPPORTED:

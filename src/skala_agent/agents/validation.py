@@ -16,7 +16,17 @@ def valid_sources(assessment, evidence):
 
 
 def run(state, provider=None):
-    updates = provider.validate_evidence(state["evidence"]) if provider else []
+    referenced = set()
+    for assessment in state["synthesis"]:
+        referenced.update(assessment.evidence_ids)
+        for signal in assessment.signals:
+            referenced.update(signal.evidence_ids)
+    for analysis in state.get("tech_analysis", {}).values():
+        referenced.update(analysis.evidence_ids)
+    for finding in state.get("synthesis_findings", []):
+        referenced.update(finding.evidence_ids)
+    targets = [item for item in state["evidence"] if item.id in referenced]
+    updates = provider.validate_evidence(targets) if provider and targets else []
     evidence = {item.id: item for item in state["evidence"]}
     evidence.update({item.id: item for item in updates})
     evidence = list(evidence.values())
