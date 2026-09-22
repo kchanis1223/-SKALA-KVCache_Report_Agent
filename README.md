@@ -46,19 +46,19 @@ trade-off가 달라 동일한 평가 프레임에서 비교합니다.
 - Retrieval: numpy VectorStore, Retriever — Hit@1, Hit@3, MRR
 - Embedding: BAAI/bge-m3 — 한국어 질의와 영어 기술 문서 검색을 고려한 다국어 임베딩
 
-발표·설계 기준의 Agent별 모델 배정은 다음과 같습니다. 아직 정하지 않은 Agent는 공란으로 둡니다.
+설계서 기준의 Agent별 모델 배정은 다음과 같습니다.
 
-| Agent | 모델 배정 |
-| --- | --- |
-| Synthesis | `gpt-5.6-sol`, reasoning effort `medium` |
-| Validation | `gpt-5.6-terra`, reasoning effort `low` |
-| Report | `gpt-5.6-terra`, reasoning effort `low` |
-| Research | |
-| Additional Search | |
-| TRL | |
-| Market | |
-| Stakeholder | |
-| Domain | |
+| Agent | 적용 모델 | 선정 이유 |
+| --- | --- | --- |
+| Research | Qwen3-4B / Ollama | 논문 RAG 결과에서 기술 원리·수치·한계를 구조화해 추출 |
+| TRL | Qwen3-4B / Ollama | 정의된 TRL 1~9 기준에 근거를 매핑하는 규칙 기반 평가 |
+| Market | Qwen3-4B / Ollama | 시장 규모·채택·생태계 축에 웹 검색 결과를 분류·정리 |
+| Stakeholder | Qwen3-4B / Ollama | 이해관계자별 근거를 지지·유보·회의로 구조화 |
+| Domain | Qwen3-4B / Ollama | 비용·SLA·운영 기준과 RAG 근거를 사용한 적용성 평가 |
+| Synthesis | GPT-5.6 Sol | 네 관점의 일치·상충·trade-off를 해석하는 고난도 종합 추론 |
+| Validation | GPT-5.6 Terra | 주장과 Evidence의 대응·누락 여부 검증 |
+| Additional Search | Qwen3-4B / Ollama | 검색 질의 생성과 결과 전달 중심의 제한적 작업 |
+| Report | GPT-5.6 Terra | 검증된 State를 일관된 보고서 문장으로 구성 |
 
 ## Agents
 
