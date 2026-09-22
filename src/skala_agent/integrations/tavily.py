@@ -1,4 +1,5 @@
 import hashlib
+import re
 from urllib.parse import urlparse
 
 from pydantic import ValidationError
@@ -9,6 +10,22 @@ from skala_agent.integrations.http import post_json
 
 def document_id(url: str) -> str:
     return "web-" + hashlib.sha256(url.encode()).hexdigest()[:20]
+
+
+# 보고서는 한국어로 쓰고 근거는 한국어·영어 원문만 인용합니다. 그 외 문자
+# 체계의 기사가 섞이면 인용을 읽을 수 없고 검증 모델도 판정하기 어렵습니다.
+# 실측: 태국어 기사가 REFERENCE에 인용됐습니다.
+_READABLE = re.compile(r"[0-9A-Za-z\u3131-\u318E\uAC00-\uD7A3]")
+_MIN_READABLE_RATIO = 0.5
+
+
+def is_readable(text: str) -> bool:
+    """한글·라틴 문자 비중이 절반 이상인지 본다. 공백·기호는 세지 않는다."""
+    letters = [ch for ch in text if not ch.isspace() and ch.isalnum()]
+    if not letters:
+        return False
+    readable = sum(1 for ch in letters if _READABLE.match(ch))
+    return readable / len(letters) >= _MIN_READABLE_RATIO
 
 
 class TavilySearch:
@@ -56,6 +73,8 @@ class TavilySearch:
                     source_type=kind,
                 )
             except (KeyError, TypeError, ValidationError, ValueError):
+                continue
+            if not is_readable(f"{document.title} {document.content}"):
                 continue
             documents.append(document)
         return documents

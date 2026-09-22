@@ -13,6 +13,16 @@ class SynthesisDraft(BaseModel):
     findings: list[SynthesisFinding]
 
 
+# 규칙 기반 findings의 본문 문구. 이전에는 "{키} 관련 trade-off 또는 적용
+# 조건이 확인됐다."를 그대로 써서 보고서 5.3에 같은 문장이 여러 번 실렸습니다.
+# 키마다 무엇을 뜻하는지 한국어 서술로 적습니다.
+TRADEOFF_SUMMARIES = {
+    "quality_stability": "처리량·메모리 개선이 정확도·안정성과 맞바꿔지는 구간이 있다",
+    "resource_cost": "메모리 절감이 CPU·대역폭·스토리지 비용으로 옮겨가는 구간이 있다",
+    "operational_complexity": "성능 개선이 배포·통합·운영 부담을 늘리는 구간이 있다",
+    "condition_limited": "효과가 context length·batch size·대역폭 등 특정 조건에서만 나타난다",
+}
+
 QUESTION_KEYWORDS = {
     "quality_stability": (
         ("메모리", "throughput", "처리량", "성능"),
@@ -144,7 +154,11 @@ def run(state, provider=None):
                     SynthesisFinding(
                         technology_id=assessment.technology_id,
                         question=question,
-                        summary=f"{question} 관련 trade-off 또는 적용 조건이 확인됐다.",
+                        summary=(
+                            f"{assessment.technology_id}: "
+                            f"{TRADEOFF_SUMMARIES[question]} "
+                            f"({assessment.perspective} 관점 판정 근거에서 확인)"
+                        ),
                         assessment_refs=[(assessment.perspective, assessment.technology_id)],
                         evidence_ids=evidence_ids,
                     )

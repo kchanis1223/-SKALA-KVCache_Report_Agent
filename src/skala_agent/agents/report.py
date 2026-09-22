@@ -4,6 +4,7 @@ from pydantic import BaseModel, ValidationError
 
 from skala_agent.agents.validation import valid_evidence, valid_sources
 from skala_agent.integrations.contracts import ModelOutputError
+from skala_agent.schemas import PERSPECTIVES
 
 
 class ReportDraft(BaseModel):
@@ -20,6 +21,17 @@ HEADINGS = (
     "## 6. 한계점",
     "## REFERENCE",
 )
+
+
+def _question_label(text: str) -> str:
+    """본문에 보일 질문 문구만 남긴다.
+
+    Signal.question에는 재현용으로 "[trl_1] ... (응답: yes)"처럼 내부 질문 ID와
+    응답값이 함께 들어 있습니다. 보고서 본문에 그대로 내보내면 읽는 사람에게
+    의미 없는 식별자가 노출됩니다. 원본 값은 State에 그대로 남습니다.
+    """
+    label = re.sub(r"^\s*\[[^\]]+\]\s*", "", text)
+    return re.sub(r"\s*\(응답:[^)]*\)\s*$", "", label).strip()
 
 
 def _signal_support(item, evidence):
@@ -129,6 +141,23 @@ def _refine(base, model):
     return report
 
 
+def _summary_line(state) -> str:
+    """판정 집계를 요약 첫 줄로 둔다.
+
+    이전 SUMMARY는 평가 도메인과 재검색 횟수만 있어, 읽는 사람이 결론을
+    파악하려면 4장까지 내려가야 했습니다. 집계는 State에서 세는 값이고
+    없는 판정을 만들지 않습니다.
+    """
+    items = state["synthesis"]
+    concluded = [item for item in items if _conclusive(item, state["evidence"])]
+    verdicts = ", ".join(
+        f"{item.technology_id}/{item.perspective}={item.verdict}" for item in concluded
+    )
+    head = f"기술 {len({i.technology_id for i in items})}건 × 관점 {len(PERSPECTIVES)}개 중 "
+    head += f"판정 {len(concluded)}건, 판단 보류 {len(items) - len(concluded)}건."
+    return f"{head} 확정 판정: {verdicts}." if concluded else f"{head} 확정 판정 없음."
+
+
 def _header(run_mode):
     """실행 모드에 따라 제목과 서두 안내를 고른다.
 
@@ -197,8 +226,9 @@ def run(state, provider=None):
         "",
         "## SUMMARY",
         "",
-        f"평가 도메인: {state['domain']}",
-        f"추가 검색 횟수: {state['retry_count']}",
+        _summary_line(state),
+        "",
+        f"평가 도메인: {state['domain']} · 추가 검색 {state['retry_count']}회",
         "",
         "## 1. 분석 배경",
         "",
@@ -265,22 +295,37 @@ def run(state, provider=None):
                 if gaps
                 else "검증된 근거 부족"
             )
-            lines.append(f"- {label}: 판단 보류 ({reason})")
-            # 같은 관점의 나머지 부족 사유도 모두 남깁니다.
-            shown = {reason}
+            lines.append(f"- {label}: 판단 보류 ({_question_label(reason)})")
+            # 같은 관점의 나머지 부족 사유도 남기되 중복은 접습니다.
+            seen = {reason}
+            others = []
             for gap in gaps:
-                if gap.reason not in shown:
-                    shown.add(gap.reason)
-                    lines.append(f"  - 부족: {gap.reason}")
+                if gap.reason not in seen:
+                    seen.add(gap.reason)
+                    others.append(gap.reason)
+            if others:
+                lines.append(f"  - 그 외 부족 사유: {', '.join(others[:2])}")
             continue
         refs = _citations(sources, used)
         lines.append(f"- {label}: {item.verdict} (confidence: {item.confidence}) {refs}")
         # 판정은 검증됐지만 일부 질문의 근거가 없으면 함께 드러냅니다.
+        #
+        # 미지지 Signal과 Signal 단위 부족 항목은 사실상 같은 집합입니다. 둘 다
+        # 나열하면 판정 한 줄 밑에 같은 내용이 두 번씩 쌓여 본문이 묻힙니다.
+        # 본문에는 건수와 대표 항목만 남기고 전체 목록은 6장으로 보냅니다.
         _, unsupported = _signal_support(item, state["evidence"])
-        for signal in unsupported:
-            lines.append(f"  - 근거 부족 질문: {signal.question}")
-        for gap in signal_gaps:
-            lines.append(f"  - 부족: {gap.claim} — {gap.reason}")
+        questions = list(
+            dict.fromkeys(
+                [_question_label(signal.question) for signal in unsupported]
+                + [_question_label(gap.claim) for gap in signal_gaps]
+            )
+        )
+        if questions:
+            shown = ", ".join(questions[:2])
+            more = f" 외 {len(questions) - 2}건" if len(questions) > 2 else ""
+            lines.append(
+                f"  - 근거 부족 질문 {len(questions)}/{len(item.signals)}건: {shown}{more}"
+            )
     lines += [
         "",
         "## 5. 종합 비교 및 시사점",
@@ -330,13 +375,21 @@ def run(state, provider=None):
         "### 5.3 주요 trade-off",
         "",
     ]
+    # 같은 (기술, 유형)에 대해 findings가 여러 개 나오면 5.3에 같은 문장이
+    # 반복됩니다. 인용은 합치고 문장은 한 번만 싣습니다.
+    merged: dict[tuple[str, str], dict] = {}
     for item in tradeoffs:
         sources = _sources(
             _value(item, "technology_id"), _value(item, "evidence_ids", []), state["evidence"]
         )
-        if sources:
-            lines.append(f"- {_value(item, 'summary')} {_citations(sources, used)}")
-    if not tradeoffs:
+        if not sources:
+            continue
+        key = (_value(item, "technology_id"), _value(item, "question"))
+        entry = merged.setdefault(key, {"summary": _value(item, "summary"), "sources": {}})
+        entry["sources"].update(sources)
+    for entry in merged.values():
+        lines.append(f"- {entry['summary']} {_citations(entry['sources'], used)}")
+    if not merged:
         lines.append("검증된 trade-off 없음.")
     lines += [
         "",
@@ -347,7 +400,15 @@ def run(state, provider=None):
         "",
     ]
     lines += _limitations(state)
-    lines += [f"- {m.technology_id}/{m.perspective}: {m.reason}" for m in state["missing_evidence"]]
+    # 부족 항목을 그대로 나열하면 같은 줄이 수십 번 반복됩니다(실측 33줄 중
+    # 서로 다른 사유는 몇 개뿐). (기술/관점, 사유)로 묶어 건수로 적습니다.
+    grouped: dict[tuple[str, str, str], int] = {}
+    for item in state["missing_evidence"]:
+        key = (item.technology_id, item.perspective, _question_label(item.reason))
+        grouped[key] = grouped.get(key, 0) + 1
+    for (technology_id, perspective, reason), count in grouped.items():
+        suffix = f" ({count}건)" if count > 1 else ""
+        lines.append(f"- {technology_id}/{perspective}: {reason}{suffix}")
     lines += ["", "## REFERENCE", ""]
     for index, (url, item) in enumerate(used.items(), start=1):
         lines.append(f"- [{index}] [{item.title}]({url})")
