@@ -32,6 +32,8 @@ class Provider(Protocol):
 
     def search_missing(self, missing: list[MissingEvidence]) -> list[Evidence]: ...
 
+    def validate_evidence(self, evidence: list[Evidence]) -> list[Evidence]: ...
+
 
 class DemoProvider:
     def research(self, technologies):
@@ -52,4 +54,7 @@ class DemoProvider:
         ], []
 
     def search_missing(self, missing):
+        return []
+
+    def validate_evidence(self, evidence):
         return []

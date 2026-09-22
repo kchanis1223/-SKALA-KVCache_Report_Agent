@@ -52,3 +52,65 @@ def test_signal_without_a_valid_linked_source_requests_that_question_again():
     assert missing[0].kind == "unsupported_claim"
     assert missing[0].claim == "SLA 영향은 무엇인가?"
     assert missing[0].queries == ["itme domain SLA 영향은 무엇인가?"]
+
+
+def test_signals_keep_distinct_evidence_ids_when_they_share_a_url():
+    assessment = Assessment(
+        technology_id="itme",
+        perspective="domain",
+        verdict="조건부 개선",
+        rationale="비용과 SLA를 함께 확인했다.",
+        status="assessed",
+        evidence_ids=["cost", "sla"],
+        signals=[
+            Signal(question="비용 영향", grade="중", evidence_ids=["cost"]),
+            Signal(question="SLA 영향", grade="중", evidence_ids=["sla"]),
+        ],
+    )
+    evidence = [
+        Evidence(
+            id=evidence_id,
+            technology_id="itme",
+            claim=claim,
+            url="https://example.org/shared",
+            title="shared",
+            excerpt=claim,
+            source_type="official",
+            supports_claim=True,
+        )
+        for evidence_id, claim in (("cost", "비용 근거"), ("sla", "SLA 근거"))
+    ]
+
+    result = run({"synthesis": [assessment], "evidence": evidence})
+
+    assert result["missing_evidence"] == []
+    assert result["synthesis"][0].confidence == "low"
+
+
+def test_provider_evidence_verdict_is_used_in_the_same_validation_pass():
+    assessment = Assessment(
+        technology_id="itme",
+        perspective="trl",
+        verdict="TRL 6",
+        rationale="실증 근거가 있다.",
+        status="assessed",
+        evidence_ids=["evidence-1"],
+    )
+    evidence = Evidence(
+        id="evidence-1",
+        technology_id="itme",
+        claim="ITME: TRL 6 실증 근거",
+        url="https://example.org/trl",
+        title="TRL fixture",
+        excerpt="A system prototype was evaluated.",
+        source_type="paper",
+    )
+
+    class Provider:
+        def validate_evidence(self, items):
+            return [item.model_copy(update={"supports_claim": True}) for item in items]
+
+    result = run({"synthesis": [assessment], "evidence": [evidence]}, Provider())
+
+    assert result["missing_evidence"] == []
+    assert result["evidence"] == [evidence.model_copy(update={"supports_claim": True})]

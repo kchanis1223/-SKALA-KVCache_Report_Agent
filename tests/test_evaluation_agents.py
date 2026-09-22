@@ -5,7 +5,7 @@ import pytest
 from skala_agent.agents.evaluation_rubrics import market_details
 from skala_agent.evaluation_provider import EvaluationProvider
 from skala_agent.integrations.contracts import SearchDocument
-from skala_agent.schemas import Technology
+from skala_agent.schemas import Evidence, Technology
 from skala_agent.workflow.graph import build_graph, initial_state
 
 TECHS = [
@@ -41,6 +41,8 @@ class ModelFixture:
     def invoke(self, messages):
         self.calls.append(messages)
         payload = json.loads(messages[1]["content"])
+        if "claim" in payload:
+            return json.dumps({"supports_claim": False})
         findings = []
         for q in payload["questions"]:
             answer = (
@@ -210,3 +212,24 @@ def test_retry_search_candidates_reach_model_and_ids_remain_stable():
     assert payload["sources"][0]["url"] == "https://new.example/paper"
     second, _ = provider.assess("trl", TECHS[:1], "datacenter", {}, extra + sources)
     assert first[0].evidence_ids == second[0].evidence_ids
+
+
+def test_provider_updates_supports_claim_without_changing_evidence_id():
+    class ClaimModel:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"supports_claim": True})
+
+    provider = EvaluationProvider(ClaimModel(), SearchFixture())
+    evidence = Evidence(
+        id="claim-1",
+        technology_id="turboquant",
+        claim="TurboQuant: 메모리 사용량 감소",
+        url="https://example.org/claim",
+        title="Claim fixture",
+        excerpt="Memory usage decreased in the measured workload.",
+        source_type="paper",
+    )
+
+    updated = provider.validate_evidence([evidence])
+
+    assert updated == [evidence.model_copy(update={"supports_claim": True})]

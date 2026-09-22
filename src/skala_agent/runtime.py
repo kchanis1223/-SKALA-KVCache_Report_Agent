@@ -86,6 +86,9 @@ class TimeoutProvider:
     def search_missing(self, missing):
         return call_with_timeout(self.inner.search_missing, self.seconds, missing)
 
+    def validate_evidence(self, evidence):
+        return call_with_timeout(self.inner.validate_evidence, self.seconds, evidence)
+
 
 def _load_real_provider() -> Provider:
     from importlib import import_module

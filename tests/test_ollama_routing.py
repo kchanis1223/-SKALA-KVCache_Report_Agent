@@ -83,6 +83,10 @@ def test_actual_evaluation_requests_use_selected_model(single, expected):
         body = json.loads(request.content)
         calls.append(body["model"])
         payload = json.loads(body["messages"][1]["content"])
+        if "claim" in payload:
+            return httpx.Response(
+                200, json={"done": True, "message": {"content": '{"supports_claim": false}'}}
+            )
         output = {
             "findings": [
                 {

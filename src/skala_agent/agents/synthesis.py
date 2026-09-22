@@ -15,10 +15,7 @@ QUESTION_KEYWORDS = {
 
 
 def _text(assessment):
-    return " ".join(
-        [assessment.verdict, assessment.rationale]
-        + [signal.question for signal in assessment.signals]
-    ).lower()
+    return " ".join([assessment.verdict, assessment.rationale]).lower()
 
 
 def _linked_evidence_ids(assessment, evidence):

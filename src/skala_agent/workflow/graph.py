@@ -121,8 +121,8 @@ def _logged_synthesize(state):
     return result
 
 
-def _logged_validate(state):
-    result = validation.run(state)
+def _logged_validate(state, provider):
+    result = validation.run(state, provider)
     missing = result["missing_evidence"]
     logger.info(
         "근거 검증 완료 (근거 부족 %d건%s)",
@@ -201,7 +201,7 @@ def build_graph(provider: Provider | None = None):
 
     graph.add_node("evaluate", evaluate)
     graph.add_node("synthesize", _logged_synthesize)
-    graph.add_node("validate", _logged_validate)
+    graph.add_node("validate", lambda state: _logged_validate(state, provider))
     graph.add_node(
         "additional_search", lambda state: additional_search_with_context(state, provider)
     )

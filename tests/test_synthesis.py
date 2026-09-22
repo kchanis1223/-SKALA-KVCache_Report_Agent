@@ -98,3 +98,35 @@ def test_synthesis_covers_all_five_design_questions_when_the_assessments_state_t
         "maturity_adoption",
         "condition_limited",
     }
+
+
+def test_synthesis_does_not_treat_a_question_prompt_as_a_tradeoff():
+    assessment = Assessment(
+        technology_id="turboquant",
+        perspective="domain",
+        verdict="판단 보류",
+        rationale="비교할 근거가 아직 부족하다.",
+        status="assessed",
+        evidence_ids=["evidence-1"],
+        signals=[
+            Signal(
+                question="메모리 절감이 정확도와 안정성에 미치는 영향은 무엇인가?",
+                grade="하",
+                evidence_ids=["evidence-1"],
+            )
+        ],
+    )
+    evidence = Evidence(
+        id="evidence-1",
+        technology_id="turboquant",
+        claim="검토 질문",
+        url="https://example.org/question",
+        title="fixture",
+        excerpt="The question needs further evidence.",
+        source_type="paper",
+        supports_claim=True,
+    )
+
+    result = run({"analyses": {"domain": [assessment]}, "evidence": [evidence]})
+
+    assert result["synthesis_findings"] == []
