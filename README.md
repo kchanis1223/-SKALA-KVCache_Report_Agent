@@ -71,9 +71,10 @@ flowchart TD
 실제 구현은 LangGraph `Send`로 같은 평가 노드를 관점별로 병렬 실행하고 결과를 합칩니다. retry에서는 부족한 관점만 선택합니다. [공식 Send 문서](https://reference.langchain.com/python/langgraph/types/Send)를 참고했습니다.
 
 - `analyses`는 관점 이름을 키로 병합하므로 병렬 쓰기가 충돌하지 않습니다.
-- `evidence`는 `operator.add`로 누적합니다. 출처 수는 고유 URL 기준입니다.
+- `evidence`는 `merge_evidence`로 ID별 갱신합니다. 같은 ID의 과거 버전은 교체합니다. 출처 수는 고유 URL 기준입니다.
 - 같은 관점의 retry는 이전 판정을 교체합니다. 정상 관점의 결과는 유지합니다.
 - 검증된 출처가 2개 미만이면 `confidence=low`입니다.
+- 평가 서비스의 타임아웃·연결 실패는 `failed`로 남기고 정상 관점의 결과를 보존합니다.
 - 근거가 없는 판정은 재시도 후에도 보고서에서 제외하고 판단 보류로 표시합니다.
 - 현재 검증은 출처 연결·기술 ID·`supports_claim` 확인입니다. 실제 의미적 지지 여부 및 중립성 검증은 구현해야 합니다.
 
@@ -93,7 +94,7 @@ flowchart TD
 ## 다음 구현 순서
 
 1. 김동찬: 문서 후보 원문 확인 → PDF 파싱 → 청크 metadata → BGE-M3 → VectorDB → 검색 평가셋.
-2. 김강휘: 관점별 세부 output schema 확정 → 프롬프트 적용 → 실제 provider의 `research`, `assess`, `search_missing` 구현.
+2. 김강휘: 확정된 관점별 details schema 적용 → 프롬프트 구현 → 실제 provider의 `research`, `assess`, `search_missing` 구현.
 3. 윤소영: provider를 `build_graph(provider)`에 주입하고 실제 데이터 통합. 필요하면 checkpoint·실행 로그·오류 처리 추가.
 4. 이준형: 설계서 4-7 상충 탐지, 문장별 근거 검증·중립성 검사, 참고문헌 서식과 보고서 본문 구현.
 
@@ -118,3 +119,5 @@ GitHub에서 `main` 대상으로 PR을 만듭니다. 기존 개인 브랜치가 
 `.env`, PDF, 벡터 인덱스, 출력 보고서는 제외됩니다. `uv.lock`은 커밋해서 동일한 의존성을 사용합니다. GitHub Actions에서 lint·테스트·demo 실행을 확인합니다.
 
 개발 규칙: [CONTRIBUTING.md](CONTRIBUTING.md) · 계약: [docs/interfaces.md](docs/interfaces.md) · 제공 설계서: [docs/design-v1.1.md](docs/design-v1.1.md)
+
+공통 계약 v1과 정상·미완료·실패 예제는 [인터페이스 문서](docs/interfaces.md)와 `tests/fixtures/contracts.json`을 기준으로 합니다.

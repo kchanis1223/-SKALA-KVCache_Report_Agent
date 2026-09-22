@@ -2,11 +2,20 @@
 
 from typing import Protocol
 
-from skala_agent.schemas import Assessment, Evidence, MissingEvidence, Perspective, Technology
+from skala_agent.schemas import (
+    Assessment,
+    Evidence,
+    MissingEvidence,
+    Perspective,
+    TechAnalysis,
+    Technology,
+)
 
 
 class Provider(Protocol):
-    def research(self, technologies: list[Technology]) -> tuple[dict[str, str], list[Evidence]]:
+    def research(
+        self, technologies: list[Technology]
+    ) -> tuple[dict[str, TechAnalysis], list[Evidence]]:
         """role=primary 논문 RAG에서 기술 개요·한계·실험 조건을 추출."""
         ...
 
@@ -15,7 +24,7 @@ class Provider(Protocol):
         perspective: Perspective,
         technologies: list[Technology],
         domain: str,
-        tech_analysis: dict[str, str],
+        tech_analysis: dict[str, TechAnalysis],
         evidence: list[Evidence],
     ) -> tuple[list[Assessment], list[Evidence]]:
         """도메인: 전체 논문 RAG + 웹. 나머지 관점: 웹검색."""
@@ -26,7 +35,10 @@ class Provider(Protocol):
 
 class DemoProvider:
     def research(self, technologies):
-        return {t.id: "논문 RAG 연결 대기" for t in technologies}, []
+        return {
+            t.id: TechAnalysis(technology_id=t.id, overview="논문 RAG 연결 대기")
+            for t in technologies
+        }, []
 
     def assess(self, perspective, technologies, domain, tech_analysis, evidence):
         return [

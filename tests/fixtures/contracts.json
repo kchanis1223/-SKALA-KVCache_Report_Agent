@@ -1,0 +1,120 @@
+{
+  "chunk": {
+    "id": "turboquant-p1-1",
+    "text": "Synthetic test passage, not a paper claim.",
+    "paper_id": "turboquant",
+    "camp": "sw",
+    "role": "primary",
+    "section": "fixture",
+    "page": 1,
+    "source_url": "https://example.org/paper"
+  },
+  "retrieval": {
+    "chunk": {
+      "id": "turboquant-p1-1",
+      "text": "Synthetic test passage, not a paper claim.",
+      "paper_id": "turboquant",
+      "camp": "sw",
+      "role": "primary",
+      "section": "fixture",
+      "page": 1,
+      "source_url": "https://example.org/paper"
+    },
+    "score": 0.8,
+    "score_type": "dense",
+    "dense_score": null,
+    "sparse_score": null
+  },
+  "evidence": {
+    "id": "trl-turboquant-bd87a4fbfee06ee5b67b4aed",
+    "technology_id": "turboquant",
+    "claim": "fixture claim",
+    "url": "https://example.org/paper",
+    "title": "Synthetic test fixture",
+    "source_type": "paper",
+    "excerpt": "Synthetic test passage, not a paper claim.",
+    "section_or_page": "fixture, p.1",
+    "chunk_id": "turboquant-p1-1",
+    "confidence": "low",
+    "page": 1,
+    "supports_claim": true
+  },
+  "tech_analysis": {
+    "technology_id": "turboquant",
+    "overview": "테스트 개요",
+    "scope": [
+      "fixture"
+    ],
+    "limitations": [],
+    "experiments": [
+      "fixture, p.1"
+    ],
+    "evidence_ids": [
+      "trl-turboquant-bd87a4fbfee06ee5b67b4aed"
+    ],
+    "status": "assessed"
+  },
+  "normal": {
+    "technology_id": "turboquant",
+    "perspective": "trl",
+    "verdict": "테스트 판정",
+    "rationale": "테스트 데이터이며 실제 기술 평가가 아님",
+    "confidence": "low",
+    "signals": [],
+    "evidence_ids": [
+      "trl-turboquant-bd87a4fbfee06ee5b67b4aed"
+    ],
+    "status": "assessed",
+    "error": null,
+    "details": {
+      "perspective": "trl",
+      "level": 3
+    }
+  },
+  "pending": {
+    "technology_id": "itme",
+    "perspective": "domain",
+    "verdict": "판단 보류",
+    "rationale": "SLA 지연 수치 확인 필요",
+    "confidence": "low",
+    "signals": [
+      {
+        "question": "TTFT/TPOT 실측 조건은?",
+        "grade": "하",
+        "evidence_ids": []
+      }
+    ],
+    "evidence_ids": [],
+    "status": "pending",
+    "error": null,
+    "details": null
+  },
+  "failed": {
+    "technology_id": "itme",
+    "perspective": "domain",
+    "verdict": "판단 보류",
+    "rationale": "외부 서비스 요청 실패",
+    "confidence": "low",
+    "signals": [],
+    "evidence_ids": [],
+    "status": "failed",
+    "error": {
+      "code": "TimeoutError",
+      "message": "외부 서비스 요청 실패",
+      "retryable": true
+    },
+    "details": null
+  },
+  "missing": {
+    "technology_id": "itme",
+    "perspective": "domain",
+    "reason": "SLA 지연 수치 확인 필요",
+    "kind": "not_evaluated",
+    "claim": "SLA 지연 수치 확인 필요",
+    "queries": [
+      "itme domain TTFT/TPOT 실측 조건은?"
+    ],
+    "evidence_ids": [],
+    "retryable": true
+  }
+}
