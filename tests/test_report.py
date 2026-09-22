@@ -1,5 +1,5 @@
 from skala_agent.agents.report import run
-from skala_agent.schemas import Assessment, Evidence, MissingEvidence, Technology
+from skala_agent.schemas import Assessment, Evidence, MissingEvidence, TechAnalysis, Technology
 
 
 def _state(assessment, evidence, missing=None):
@@ -7,6 +7,7 @@ def _state(assessment, evidence, missing=None):
         "domain": "data center serving",
         "retry_count": 0,
         "selected_technologies": [Technology(id="turboquant", name="TurboQuant", camp="sw")],
+        "tech_analysis": {},
         "synthesis": [assessment],
         "evidence": evidence,
         "missing_evidence": missing or [],
@@ -102,3 +103,80 @@ def test_report_deduplicates_reference_urls_and_withholds_unverified_assessments
     assert "https://example.org/shared" not in report
     assert "turboquant/market: 검증된 근거 부족" in report
     assert "검증된 인용 출처 없음." in report
+
+
+def test_report_renders_verified_technical_overview_and_tradeoff_findings():
+    state = _state(
+        Assessment(
+            technology_id="turboquant",
+            perspective="trl",
+            verdict="TRL 5",
+            rationale="fixture",
+            status="assessed",
+            evidence_ids=[],
+        ),
+        [
+            _evidence("overview", "https://example.org/overview"),
+            _evidence("tradeoff", "https://example.org/tradeoff"),
+            _evidence("unverified", "https://example.org/unverified", supports_claim=False),
+        ],
+    )
+    state["tech_analysis"] = {
+        "turboquant": TechAnalysis(
+            technology_id="turboquant",
+            overview="검증된 기술 개요",
+            scope=["검증된 적용 범위"],
+            limitations=["검증된 한계"],
+            evidence_ids=["overview", "unverified"],
+            status="assessed",
+        )
+    }
+    state["synthesis_findings"] = [
+        {
+            "technology_id": "turboquant",
+            "question": "condition_limited",
+            "summary": "특정 조건에서만 성능 차이가 확인됨",
+            "evidence_ids": ["tradeoff"],
+        }
+    ]
+
+    report = run(state)["report"]
+
+    assert "논문 기반 기술 요약 구현 대기." not in report
+    assert "상충 탐지·종합 서술 구현 대기." not in report
+    assert "### 3.1 TurboQuant" in report
+    assert "검증된 기술 개요 [1]" in report
+    assert "검증된 적용 범위 [1]" in report
+    assert "검증된 한계 [1]" in report
+    assert "https://example.org/unverified" not in report
+    assert "### 5.3 주요 trade-off" in report
+    assert "특정 조건에서만 성능 차이가 확인됨 [2]" in report
+    assert report.count("https://example.org/overview") == 1
+    assert report.count("https://example.org/tradeoff") == 1
+
+
+def test_report_lists_shared_verified_verdicts_as_common_points():
+    turboquant = Assessment(
+        technology_id="turboquant",
+        perspective="trl",
+        verdict="공통 판정",
+        rationale="fixture",
+        status="assessed",
+        evidence_ids=["turboquant-source"],
+    )
+    itme = turboquant.model_copy(update={"technology_id": "itme", "evidence_ids": ["itme-source"]})
+    itme_source = _evidence("itme-source", "https://example.org/itme")
+    itme_source = itme_source.model_copy(update={"technology_id": "itme"})
+    state = _state(
+        turboquant,
+        [
+            _evidence("turboquant-source", "https://example.org/turboquant"),
+            itme_source,
+        ],
+    )
+    state["selected_technologies"].append(Technology(id="itme", name="ITME", camp="hw"))
+    state["synthesis"].append(itme)
+
+    report = run(state)["report"]
+
+    assert "trl: 공통 판정 (기술: turboquant, itme) [1] [2]" in report
