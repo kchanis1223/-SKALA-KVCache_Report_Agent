@@ -12,7 +12,14 @@ class StructuredExtractor:
         self.model = model
 
     def extract(self, system: str, payload: dict) -> EvaluationDraft:
-        schema = json.dumps(EvaluationDraft.model_json_schema(), ensure_ascii=False)
+        response_schema = EvaluationDraft.model_json_schema()
+        question_ids = [q["id"] for q in payload.get("questions", [])]
+        if question_ids:
+            response_schema["properties"]["findings"].update(
+                minItems=len(question_ids), maxItems=len(question_ids)
+            )
+            response_schema["$defs"]["Finding"]["properties"]["question_id"]["enum"] = question_ids
+        schema = json.dumps(response_schema, ensure_ascii=False)
         example = json.dumps(
             {
                 "findings": [
@@ -42,14 +49,18 @@ class StructuredExtractor:
         ]
         for attempt in range(2):
             if hasattr(self.model, "invoke_structured"):
-                response = self.model.invoke_structured(
-                    messages, EvaluationDraft.model_json_schema()
-                )
+                response = self.model.invoke_structured(messages, response_schema)
             else:
                 response = self.model.invoke(messages)
             text = response if isinstance(response, str) else getattr(response, "content", None)
             try:
-                return EvaluationDraft.model_validate_json(text)
+                draft = EvaluationDraft.model_validate_json(text)
+                ids = [f.question_id for f in draft.findings]
+                if question_ids and (
+                    len(ids) != len(question_ids) or set(ids) != set(question_ids)
+                ):
+                    raise ValueError("질문 개수 또는 ID 불일치")
+                return draft
             except (ValidationError, TypeError, ValueError):
                 if attempt == 0:
                     messages.append(
