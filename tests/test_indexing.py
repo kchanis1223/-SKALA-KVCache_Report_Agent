@@ -93,3 +93,19 @@ def test_bge_embedder_returns_empty_without_loading_model():
     from skala_agent.retrieval.embedding import BgeM3Embedder
 
     assert BgeM3Embedder().encode([]) == []
+
+
+def test_search_cli_parses_filters():
+    from skala_agent.retrieval.search_cli import build_parser
+
+    args = build_parser().parse_args(["KV", "캐시", "양자화", "--role", "primary", "--top-k", "5"])
+    assert " ".join(args.query) == "KV 캐시 양자화"
+    assert args.role == "primary"
+    assert args.top_k == 5
+
+
+def test_search_cli_defaults_have_no_filter():
+    from skala_agent.retrieval.search_cli import build_parser
+
+    args = build_parser().parse_args(["query"])
+    assert args.role is None and args.paper_id is None and args.section is None
