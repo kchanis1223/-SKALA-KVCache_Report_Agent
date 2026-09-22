@@ -6,9 +6,9 @@ from threading import Lock
 from typing import Literal
 
 from dotenv import dotenv_values
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from skala_agent.integrations.ollama import OllamaChat
+from skala_agent.integrations.ollama import DEFAULT_KEEP_ALIVE, OllamaChat, validate_keep_alive
 from skala_agent.integrations.openai import OpenAIResponses
 
 AGENTS = (
@@ -52,6 +52,12 @@ class ModelSettings(BaseModel):
     timeout: float = Field(default=120, gt=0)
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
+    keep_alive: int | str = DEFAULT_KEEP_ALIVE
+
+    @field_validator("keep_alive", mode="before")
+    @classmethod
+    def check_keep_alive(cls, value):
+        return validate_keep_alive(value)
 
     @classmethod
     def from_environment(cls, env):
@@ -65,6 +71,7 @@ class ModelSettings(BaseModel):
             "timeout": "OLLAMA_TIMEOUT",
             "openai_api_key": "OPENAI_API_KEY",
             "openai_base_url": "OPENAI_BASE_URL",
+            "keep_alive": "OLLAMA_KEEP_ALIVE",
         }
         return cls(**{key: env[name] for key, name in names.items() if name in env})
 
@@ -91,6 +98,7 @@ class ModelRouter:
                 name,
                 base_url=settings.base_url,
                 timeout=settings.timeout,
+                keep_alive=settings.keep_alive,
                 transport=transport,
                 lock=lock,
             )

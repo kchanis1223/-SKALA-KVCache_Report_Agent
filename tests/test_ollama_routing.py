@@ -52,7 +52,7 @@ def test_native_json_schema_is_sent_to_ollama():
         assert str(request.url) == "http://localhost:11434/api/chat"
         assert body["model"] == "qwen3:8b" and body["think"] is False
         assert body["format"]["properties"]["findings"]
-        assert body["stream"] is False and body["keep_alive"] == 0
+        assert body["stream"] is False and body["keep_alive"] == "5m"
         return httpx.Response(200, json={"done": True, "message": {"content": '{"findings":[]}'}})
 
     model = OllamaChat("qwen3:8b", transport=httpx.MockTransport(handler))
@@ -146,3 +146,92 @@ def test_explicit_environment_file_does_not_load_local(monkeypatch, tmp_path):
     (tmp_path / ".env.local").write_text("TAVILY_API_KEY=local-fixture\n")
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     assert read_environment(path)["TAVILY_API_KEY"] == "custom-fixture"
+
+
+@pytest.mark.parametrize(
+    "configured, expected",
+    [
+        (None, "5m"),
+        ("10m", "10m"),
+        ("0", 0),
+        ("-1", -1),
+        ("300", 300),
+        ("1h30m", "1h30m"),
+        ("500ms", "500ms"),
+        ("1.5s", "1.5s"),
+    ],
+)
+@pytest.mark.parametrize("single", [False, True])
+def test_keep_alive_reaches_every_model_and_request(configured, expected, single):
+    calls = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        calls.append(body)
+        return httpx.Response(200, json={"done": True, "message": {"content": "{}"}})
+
+    env = {} if configured is None else {"OLLAMA_KEEP_ALIVE": configured}
+    settings = ModelSettings.from_environment(
+        {**env, "USE_SINGLE_MODEL": str(single).lower(), "OPENAI_API_KEY": "test"}
+    )
+    router = ModelRouter(settings, transport=httpx.MockTransport(handler))
+    ollama_agents = [a for a in AGENTS if isinstance(router.for_agent(a), OllamaChat)]
+    for agent in ollama_agents:
+        router.for_agent(agent).invoke([])
+        router.for_agent(agent).invoke_structured([], {"type": "object"})
+    assert len(calls) == 2 * (9 if single else 6)
+    assert all(call["keep_alive"] == expected for call in calls)
+    assert {call["model"] for call in calls} == {"qwen3:4b"}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "forever",
+        "5d",
+        "-2",
+        -2,
+        True,
+        False,
+        None,
+        1.5,
+        "NaN",
+        "inf",
+        "5 m",
+        "1e3",
+        "9223372037",
+        "999999999999h",
+        {},
+        [],
+    ],
+)
+def test_invalid_keep_alive_is_rejected_before_requests(value):
+    with pytest.raises(ValidationError):
+        ModelSettings(keep_alive=value)
+    with pytest.raises(ValueError):
+        OllamaChat("qwen3:4b", keep_alive=value)
+
+
+def test_keep_alive_environment_precedence(monkeypatch, tmp_path):
+    path = tmp_path / ".env"
+    path.write_text("OLLAMA_KEEP_ALIVE=1m\n")
+    (tmp_path / ".env.local").write_text("OLLAMA_KEEP_ALIVE=2m\n")
+    monkeypatch.delenv("OLLAMA_KEEP_ALIVE", raising=False)
+    assert ModelSettings.from_environment(read_environment(path)).keep_alive == "2m"
+    monkeypatch.setenv("OLLAMA_KEEP_ALIVE", "0")
+    assert ModelSettings.from_environment(read_environment(path)).keep_alive == 0
+
+
+@pytest.mark.parametrize("model_name", ["qwen3:4b", "qwen3:8b"])
+@pytest.mark.parametrize("keep_alive", ["5m", 0])
+def test_keep_alive_for_each_ollama_model(model_name, keep_alive):
+    def handler(request):
+        body = json.loads(request.content)
+        assert body["model"] == model_name
+        assert body["keep_alive"] == keep_alive
+        return httpx.Response(200, json={"done": True, "message": {"content": "{}"}})
+
+    model = OllamaChat(model_name, keep_alive=keep_alive, transport=httpx.MockTransport(handler))
+    model.invoke([])
+    model.invoke_structured([], {"type": "object"})
