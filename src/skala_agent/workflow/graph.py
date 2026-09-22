@@ -139,6 +139,28 @@ def _logged_report(state, provider):
     return result
 
 
+def finalize_synthesis(state, provider):
+    """최종 근거 검증 결과를 반영해 종합 findings를 다시 계산합니다.
+
+    synthesize가 validate보다 먼저 실행되므로, 종합 시점에는 Evidence의
+    supports_claim이 아직 갱신되지 않았습니다(기본값 False). synthesis는
+    supports_claim=True인 근거만 쓰기 때문에 첫 바퀴 종합은 근거 0건으로
+    계산되고, 마지막 validate 이후에는 종합을 다시 하지 않아 승인된 근거가
+    최종 보고서 5장에 반영되지 않았습니다.
+
+    보고서로 나가기 직전에 한 번 더 계산해 이 누락을 없앱니다. 철회된 근거
+    (True→False)와 재검색으로 추가된 근거도 같은 경로로 반영됩니다.
+
+    판정(synthesis)은 다시 만들지 않고 validate가 남긴 값을 그대로 둡니다.
+    synthesis.run은 analyses에서 판정을 새로 만들기 때문에, 반환값을 그대로
+    쓰면 validate가 낮춘 confidence 같은 정규화가 사라집니다.
+    """
+    result = synthesis.run(state, provider)
+    findings = result["synthesis_findings"]
+    logger.info("최종 종합 재계산 (findings %d건)", len(findings))
+    return {"synthesis_findings": findings}
+
+
 def build_graph(provider: Provider | None = None):
     provider = provider or DemoProvider()
     graph = StateGraph(EvaluationState)
@@ -152,7 +174,21 @@ def build_graph(provider: Provider | None = None):
         except (TimeoutError, ConnectionError) as exc:
             # Adapter는 외부 서비스 오류를 아래 표준 예외로 변환합니다.
             # 구조화 출력 오류나 프로그래밍 오류는 숨기지 않습니다.
-            error = AgentError(code=type(exc).__name__, message="외부 서비스 요청 실패")
+            #
+            # 두 예외를 모두 "외부 서비스 요청 실패"로 적었더니 보고서에 사실과
+            # 다른 사유가 남았습니다. TimeoutError는 외부 장애가 아니라 로컬 호출
+            # 상한(runtime.TimeoutProvider) 초과일 수 있고, 관점이 직렬화된 추론을
+            # 기다리다 상한에 걸린 경우가 실제로 그렇게 기록됐습니다.
+            #
+            # provider 예외 문구 자체는 보고서로 내보내지 않습니다. URL이나 내부
+            # 경로가 섞일 수 있어 tests/test_workflow.py가 유출을 금지합니다.
+            # 그래서 예외 종류별 고정 문구만 남기고 원문은 로그로 보냅니다.
+            error = AgentError(
+                code=type(exc).__name__,
+                message="호출 상한 시간 초과"
+                if isinstance(exc, TimeoutError)
+                else "외부 서비스 연결 실패",
+            )
             assessments = [
                 Assessment(
                     technology_id=t.id,
@@ -165,8 +201,14 @@ def build_graph(provider: Provider | None = None):
                 for t in state["selected_technologies"]
             ]
             evidence = []
+            # 원문은 보고서가 아니라 로그로만 보냅니다. status와 code만으로는
+            # 상한 초과인지 연결 실패인지 재현 때 다시 계측해야 했습니다.
             logger.warning(
-                "[%s] 평가 실패 (%.1fs): %s", key, time.monotonic() - started, error.code
+                "[%s] 평가 실패 (%.1fs): %s — %s",
+                key,
+                time.monotonic() - started,
+                error.code,
+                exc,
             )
         assessments = [Assessment.model_validate(a) for a in assessments]
         evidence = [Evidence.model_validate(e) for e in evidence]
@@ -195,20 +237,52 @@ def build_graph(provider: Provider | None = None):
                 failed.error.code,
                 failed.error.message,
             )
-        return {"analyses": {key: assessments}, "evidence": evidence}
+        # 부분 재평가에서 요청하지 않은 기술의 판정이 사라지지 않게 합병합니다.
+        # analyses reducer는 관점 목록 전체를 교체하므로, 관점 안에서의 기술별
+        # 병합은 이 노드가 책임집니다.
+        merged = {item.technology_id: item for item in state["analyses"].get(key, [])}
+        merged.update({item.technology_id: item for item in assessments})
+        order = [t.id for t in payload["state"]["selected_technologies"]]
+        order += [tid for tid in merged if tid not in order]
+        return {
+            "analyses": {key: [merged[tid] for tid in order if tid in merged]},
+            "evidence": evidence,
+        }
 
     def dispatch(state):
-        targets = (
-            PERSPECTIVES
-            if state["retry_count"] == 0
-            else sorted({m.perspective for m in state["missing_evidence"] if m.retryable})
-        )
+        # 첫 회차는 전체 평가, 재시도는 retryable인 (관점, 기술)만 다시 봅니다.
+        # 관점만 추출하면 한 기술의 근거가 부족해도 같은 관점의 두 기술을 모두
+        # 다시 평가해 호출 수가 두 배가 됩니다.
+        technologies = state["selected_technologies"]
+        if state["retry_count"] == 0:
+            targets = {key: technologies for key in PERSPECTIVES}
+        else:
+            wanted: dict[str, set[str]] = {}
+            for item in state["missing_evidence"]:
+                if item.retryable:
+                    wanted.setdefault(item.perspective, set()).add(item.technology_id)
+            # 선택 순서를 유지해 재평가 결과 순서가 실행마다 달라지지 않게 합니다.
+            targets = {
+                key: [t for t in technologies if t.id in ids] for key, ids in sorted(wanted.items())
+            }
+            targets = {key: techs for key, techs in targets.items() if techs}
+        # "병렬"이라고 적었더니 실제 추론이 직렬인 사실이 로그에서 가려졌습니다.
+        # 그래프가 하는 일은 fan-out(대상 선정과 분기)까지이고, 동시 실행 여부는
+        # 모델 계층의 lock이 결정합니다. 로그는 그래프가 보장하는 것만 말합니다.
         logger.info(
             "관점 %s 실행: %s",
-            "병렬" if state["retry_count"] == 0 else f"재평가({state['retry_count']}회차)",
-            ", ".join(targets) or "없음",
+            "fan-out" if state["retry_count"] == 0 else f"재평가({state['retry_count']}회차)",
+            ", ".join(f"{key}({','.join(t.id for t in techs)})" for key, techs in targets.items())
+            or "없음",
         )
-        return [Send("evaluate", {"perspective": key, "state": state}) for key in targets]
+        # 공유 State를 고치지 않고, 대상 기술만 좁힌 얕은 사본을 넘깁니다.
+        return [
+            Send(
+                "evaluate",
+                {"perspective": key, "state": {**state, "selected_technologies": techs}},
+            )
+            for key, techs in targets.items()
+        ]
 
     graph.add_node("evaluate", evaluate)
     graph.add_node("synthesize", lambda state: _logged_synthesize(state, provider))
@@ -221,16 +295,20 @@ def build_graph(provider: Provider | None = None):
     graph.add_conditional_edges("research", dispatch, ["evaluate"])
     graph.add_edge("evaluate", "synthesize")
     graph.add_edge("synthesize", "validate")
+    graph.add_node("finalize_synthesis", lambda state: finalize_synthesis(state, provider))
+    # 종료 경로는 모두 finalize_synthesis를 지납니다. 재검색 없이 끝나는 경우,
+    # 재검색 2회를 소진한 경우, 재시도 불가로 끝나는 경우가 모두 해당합니다.
     graph.add_conditional_edges(
         "validate",
         lambda state: (
             "additional_search"
             if any(m.retryable for m in state["missing_evidence"])
             and state["retry_count"] < MAX_RETRIES
-            else "report"
+            else "finalize_synthesis"
         ),
-        ["additional_search", "report"],
+        ["additional_search", "finalize_synthesis"],
     )
+    graph.add_edge("finalize_synthesis", "report")
     graph.add_conditional_edges("additional_search", dispatch, ["evaluate"])
     graph.add_edge("report", END)
     return graph.compile()

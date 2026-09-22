@@ -8,42 +8,77 @@ from skala_agent.evaluation_provider import EvaluationProvider
 from skala_agent.integrations.contracts import ModelOutputError, SearchDocument
 from skala_agent.integrations.ollama import OllamaChat
 from skala_agent.integrations.structured import StructuredExtractor
-from skala_agent.model_config import AGENTS, ModelRouter, ModelSettings, read_environment
+from skala_agent.model_config import ModelRouter, ModelSettings, read_environment
 from skala_agent.schemas import Technology
 from skala_agent.workflow.graph import build_graph, initial_state
 
 
-def test_all_nine_agents_follow_the_design_assignment():
+def test_all_nine_agents_use_one_openai_model_by_default():
+    """기본 경로는 OpenAI 단일 모델이고, 역할 구분은 추론 강도로만 합니다."""
+    from skala_agent.model_config import DEFAULT_OPENAI_MODEL
+
     settings = ModelSettings()
     assert len(settings.assignment()) == 9
+    assert set(settings.assignment().values()) == {DEFAULT_OPENAI_MODEL}
+    assert settings.effort_for("synthesis") == "high"
+    assert settings.effort_for("trl") == "medium"
+    assert settings.effort_for("validation") == "low"
+    with pytest.raises(ValueError):
+        settings.model_for("typo")
+    with pytest.raises(ValueError):
+        settings.effort_for("typo")
+
+
+def test_ollama_provider_keeps_the_local_assignment():
+    """provider=ollama로 되돌리면 기존 로컬 배정이 그대로 유지됩니다."""
+    settings = ModelSettings(provider="ollama")
     assert all(
         settings.model_for(agent) == "qwen3:4b"
         for agent in ("research", "additional_search", "trl", "market", "stakeholder", "domain")
     )
-    assert settings.model_for("synthesis") == "gpt-5.6-sol"
-    assert settings.model_for("validation") == settings.model_for("report") == "gpt-5.6-terra"
-    with pytest.raises(ValueError):
-        settings.model_for("typo")
+    assert settings.model_for("synthesis") == "qwen3:4b"
+    assert ModelSettings(provider="ollama", main_model="qwen3:8b").model_for("synthesis") == (
+        "qwen3:8b"
+    )
 
 
-def test_single_model_reuses_same_object_for_every_agent():
-    router = ModelRouter(ModelSettings(use_single_model=True))
-    models = [router.for_agent(a) for a in AGENTS]
-    assert all(m is models[0] for m in models)
-    assert models[0].model == "qwen3:4b"
+def test_ollama_router_serializes_per_model_not_globally():
+    """로컬 추론은 직렬화가 필요하지만 lock은 모델 단위여야 합니다.
+
+    전체에 lock 하나만 두면 서로 다른 모델끼리도 줄을 서서, 관점 fan-out이
+    모델 수와 무관하게 완전히 순차 실행됩니다.
+    """
+    router = ModelRouter(ModelSettings(provider="ollama", main_model="qwen3:8b"))
+    light = [router.for_agent(a) for a in ("trl", "market", "stakeholder", "domain")]
+    heavy = router.for_agent("synthesis")
+
+    assert {m.model for m in light} == {"qwen3:4b"}
+    assert heavy.model == "qwen3:8b"
+    # 같은 모델끼리는 lock 공유, 다른 모델과는 분리
+    assert all(m._lock is light[0]._lock for m in light)
+    assert heavy._lock is not light[0]._lock
 
 
 def test_dotenv_boolean_and_environment_precedence(monkeypatch, tmp_path):
     path = tmp_path / ".env"
-    path.write_text("USE_SINGLE_MODEL=false\nMAIN_MODEL=qwen3:8b\n")
+    path.write_text("USE_SINGLE_MODEL=false\nLLM_PROVIDER=ollama\nMAIN_MODEL=qwen3:8b\n")
     monkeypatch.delenv("USE_SINGLE_MODEL", raising=False)
-    assert ModelSettings.from_environment(read_environment(path)).use_single_model is False
-    monkeypatch.setenv("USE_SINGLE_MODEL", "true")
-    assert ModelSettings.from_environment(read_environment(path)).model_for("trl") == "qwen3:4b"
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    settings = ModelSettings.from_environment(read_environment(path))
+    assert settings.use_single_model is False
+    assert settings.model_for("synthesis") == "qwen3:8b"
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4-mini-override")
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    assert (
+        ModelSettings.from_environment(read_environment(path)).model_for("trl")
+        == "gpt-5.4-mini-override"
+    )
     with pytest.raises(ValidationError):
         ModelSettings.from_environment({"USE_SINGLE_MODEL": "perhaps"})
     with pytest.raises(ValidationError):
         ModelSettings(main_model="qwen3:32b")
+    with pytest.raises(ValidationError):
+        ModelSettings(provider="anthropic")
 
 
 def test_native_json_schema_is_sent_to_ollama():
@@ -52,7 +87,8 @@ def test_native_json_schema_is_sent_to_ollama():
         assert str(request.url) == "http://localhost:11434/api/chat"
         assert body["model"] == "qwen3:8b" and body["think"] is False
         assert body["format"]["properties"]["findings"]
-        assert body["stream"] is False and body["keep_alive"] == 0
+        # keep_alive는 호출마다 모델을 내리지 않도록 기본값을 유지합니다.
+        assert body["stream"] is False and body["keep_alive"] == "5m"
         return httpx.Response(200, json={"done": True, "message": {"content": '{"findings":[]}'}})
 
     model = OllamaChat("qwen3:8b", transport=httpx.MockTransport(handler))
@@ -75,8 +111,10 @@ def test_incomplete_ollama_outputs_are_rejected(response):
         model.invoke([])
 
 
-@pytest.mark.parametrize("single, expected", [(False, "qwen3:4b"), (True, "qwen3:4b")])
-def test_actual_evaluation_requests_use_selected_model(single, expected):
+@pytest.mark.parametrize(
+    "main_model, expected", [("qwen3:4b", "qwen3:4b"), ("qwen3:8b", "qwen3:4b")]
+)
+def test_actual_evaluation_requests_use_selected_model(main_model, expected):
     calls = []
 
     def handler(request):
@@ -112,7 +150,14 @@ def test_actual_evaluation_requests_use_selected_model(single, expected):
             ]
 
     router = ModelRouter(
-        ModelSettings(use_single_model=single, openai_api_key="test"),
+        # use_single_model=True는 종합·보고서에 전용 모델 객체를 두지 않습니다.
+        # 이 fixture handler는 관점 평가와 근거 검증 payload만 처리합니다.
+        ModelSettings(
+            provider="ollama",
+            main_model=main_model,
+            use_single_model=True,
+            openai_api_key="test",
+        ),
         transport=httpx.MockTransport(handler),
     )
     provider = EvaluationProvider(models=router, search=Search())
@@ -121,8 +166,8 @@ def test_actual_evaluation_requests_use_selected_model(single, expected):
         results, _ = provider.assess(perspective, tech, "datacenter", {}, [])
         assert results[0].status == "pending"
     assert calls == [expected] * 4
-    # 전체 graph에서도 8B를 실수로 요청하지 않습니다.
-    if single:
+    # 관점 평가는 main_model 설정과 무관하게 light_model만 요청합니다.
+    if main_model == "qwen3:4b":
         result = build_graph(provider).invoke(initial_state())
         assert result["retry_count"] == 2 and result["report"]
         assert set(calls) == {"qwen3:4b"}
@@ -146,3 +191,25 @@ def test_explicit_environment_file_does_not_load_local(monkeypatch, tmp_path):
     (tmp_path / ".env.local").write_text("TAVILY_API_KEY=local-fixture\n")
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     assert read_environment(path)["TAVILY_API_KEY"] == "custom-fixture"
+
+
+def test_keep_alive_default_avoids_reloading_the_model_every_call():
+    """기본값은 모델을 메모리에 남기고, 필요하면 0으로 되돌릴 수 있다.
+
+    keep_alive=0이면 관점 평가처럼 같은 모델을 수십 번 부르는 경로에서 호출마다
+    적재 비용을 반복해서 냅니다.
+    """
+    from skala_agent.integrations.ollama import DEFAULT_KEEP_ALIVE
+
+    sent = []
+
+    def handler(request):
+        sent.append(json.loads(request.content)["keep_alive"])
+        return httpx.Response(200, json={"done": True, "message": {"content": "ok"}})
+
+    transport = httpx.MockTransport(handler)
+    OllamaChat("qwen3:4b", transport=transport).invoke([])
+    OllamaChat("qwen3:4b", transport=transport, keep_alive=0).invoke([])
+
+    assert sent == [DEFAULT_KEEP_ALIVE, 0]
+    assert DEFAULT_KEEP_ALIVE != 0

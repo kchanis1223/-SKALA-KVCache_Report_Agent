@@ -9,6 +9,7 @@ from collections import Counter
 from typing import Literal, get_args
 
 from skala_agent.providers import DemoProvider, Provider
+from skala_agent.schemas import PERSPECTIVES
 
 Mode = Literal["demo", "real"]
 MODES: tuple[Mode, ...] = get_args(Mode)
@@ -16,13 +17,28 @@ MODES: tuple[Mode, ...] = get_args(Mode)
 ADAPTER_MODULE = "skala_agent.adapters"
 ADAPTER_FACTORY = "build_provider"
 
+# 관점 1건의 계산 시간 실측값(qwen3:4b). 상한 계산의 기준값입니다.
+MEASURED_ASSESS_SECONDS = 300.0
+
 # 외부 서비스 호출 1건의 상한. 0 이하이면 상한을 걸지 않습니다.
 #
-# 로컬 오픈웨이트 모델(qwen3:8b) 실측: 관점 1건이 295~600초 이상을 씁니다.
-# ModelRouter가 두 모델에 같은 lock을 공유해 추론이 직렬화되므로, 병렬 fan-out
-# 이후에도 뒤에 선 관점은 대기 시간까지 함께 감당해야 합니다. 120초는 정상 호출도
-# 끊어버려 네 관점 전부가 실패했습니다.
-DEFAULT_TIMEOUT_SECONDS = 900.0
+# ModelRouter가 모든 모델에 같은 lock을 공유하므로 추론이 직렬화됩니다. 그래서
+# 병렬 fan-out으로 관점을 동시에 띄워도 실제 추론은 한 줄로 서고, 뒤에 선 관점은
+# 자기 계산 시간뿐 아니라 앞선 관점들의 계산 시간까지 상한 안에서 감당합니다.
+#
+# 실측: 먼저 lock을 잡은 관점은 285.9초에 완주했지만 뒤에 선 세 관점은 계산을
+# 시작하지도 못한 채 300초 상한에서 전부 끊겼습니다. 상한이 대기 시간을 덮지
+# 못하면 "느린 관점"이 아니라 "줄 뒤에 선 관점"을 끊게 됩니다.
+#
+# 따라서 상한은 관점 1건이 아니라 직렬화된 관점 전체의 계산 시간을 덮어야 합니다.
+# lock이 모델별로 분리되면 이 곱셈은 불필요해집니다(모델 계층 과제).
+DEFAULT_TIMEOUT_SECONDS = MEASURED_ASSESS_SECONDS * len(PERSPECTIVES)
+
+# 근거 검증은 근거 1건당 모델 호출 1회입니다. 실측: 검증 단계가 12~49건에
+# 137~317초를 썼습니다(건당 4.6~12.9초). 상한을 건수와 무관하게 고정하면 근거가
+# 쌓일수록 검증이 상한을 넘기는데, 이 단계는 assess와 달리 관점 단위로 격리되지
+# 않아 한 번의 초과가 실행 전체를 중단시킵니다. 그래서 건수에 비례해 늘립니다.
+MEASURED_VALIDATE_SECONDS_PER_ITEM = 15.0
 
 # 한 관점에서 상한을 **연속으로** 넘긴 횟수가 이만큼이면 남은 재평가를 건너뜁니다.
 # 성공하면 0으로 되돌려, 느렸다가 회복한 관점을 영구 배제하지 않습니다.
@@ -87,6 +103,11 @@ class TimeoutProvider:
 
     `research`와 `search_missing`은 한 번에 하나씩만 실행돼 쌓이지 않고 실패 시
     중단이 이미 방침이라, 상한만 적용하고 차단하지 않습니다.
+
+    격리 범위가 단계마다 다릅니다. `assess`의 TimeoutError는 graph의 evaluate가
+    해당 관점의 실패로 흡수하지만, `validate_evidence`의 TimeoutError는 validate
+    노드를 그대로 통과해 실행 전체를 중단시킵니다. 검증은 근거 1건당 호출 1회라
+    근거가 쌓일수록 느려지므로, 상한을 건수에 비례해 늘려 이 차이를 보정합니다.
     """
 
     def __init__(
@@ -127,7 +148,9 @@ class TimeoutProvider:
         return call_with_timeout(self.inner.search_missing, self.seconds, missing)
 
     def validate_evidence(self, evidence):
-        return call_with_timeout(self.inner.validate_evidence, self.seconds, evidence)
+        # 근거 건수에 비례한 상한. 기본 상한보다 짧아지지는 않습니다.
+        seconds = max(self.seconds, MEASURED_VALIDATE_SECONDS_PER_ITEM * len(evidence))
+        return call_with_timeout(self.inner.validate_evidence, seconds, evidence)
 
 
 def _load_real_provider() -> Provider:
