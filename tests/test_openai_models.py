@@ -41,10 +41,37 @@ def test_openai_responses_uses_structured_output_and_reasoning_effort():
     )
 
 
-def test_model_router_assigns_gpt_models_to_only_the_three_final_agents():
+def test_model_router_assigns_one_openai_model_to_every_agent():
+    """아홉 Agent 모두 같은 모델을 쓰고 추론 강도로만 구분한다."""
+    from skala_agent.model_config import AGENTS, DEFAULT_OPENAI_MODEL
+
     router = ModelRouter(ModelSettings(openai_api_key="test"))
 
-    assert router.for_agent("synthesis").model == "gpt-5.6-sol"
-    assert router.for_agent("validation").model == "gpt-5.6-terra"
-    assert router.for_agent("report").model == "gpt-5.6-terra"
-    assert router.for_agent("domain").model == "qwen3:4b"
+    assert {router.for_agent(agent).model for agent in AGENTS} == {DEFAULT_OPENAI_MODEL}
+    assert router.for_agent("synthesis").reasoning_effort == "high"
+    assert router.for_agent("validation").reasoning_effort == "low"
+    assert router.for_agent("domain").reasoning_effort == "medium"
+
+
+def test_openai_model_id_is_overridable_by_environment():
+    """조직 배포명이 다르면 코드를 고치지 않고 OPENAI_MODEL로 바꿀 수 있다."""
+    settings = ModelSettings.from_environment(
+        {"OPENAI_MODEL": "gpt-5.4-mini-2026-04-01", "OPENAI_API_KEY": "test"}
+    )
+    router = ModelRouter(settings)
+    assert router.for_agent("trl").model == "gpt-5.4-mini-2026-04-01"
+
+
+def test_openai_models_are_not_serialized_by_a_shared_lock():
+    """원격 호출에 lock을 걸면 관점 fan-out이 순차 실행된다.
+
+    실측: 공통 Lock 때문에 관점 하나가 285.9초를 쓰는 동안 나머지 세 관점이
+    대기하다 상한에서 끊겼습니다. OpenAI 경로에는 lock을 두지 않습니다.
+    """
+    from threading import Lock
+
+    from skala_agent.model_config import AGENTS
+
+    router = ModelRouter(ModelSettings(openai_api_key="test"))
+    for agent in AGENTS:
+        assert not isinstance(router.for_agent(agent)._lock, type(Lock()))

@@ -1,6 +1,6 @@
 """OpenAI Responses API adapter for role-specific GPT calls."""
 
-from threading import Lock
+from contextlib import nullcontext
 
 from skala_agent.integrations.contracts import IncompleteModelOutputError, ModelOutputError
 from skala_agent.integrations.http import post_json
@@ -39,7 +39,10 @@ class OpenAIResponses:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.transport = transport
-        self._lock = lock if lock is not None else Lock()
+        # 원격 API 호출은 로컬 GPU 메모리를 공유하지 않으므로 기본값은 직렬화
+        # 없음입니다. Lock을 넣으면 관점 fan-out이 순차 실행됩니다. 요청 수를
+        # 제한해야 하는 배포에서는 호출자가 lock을 주입할 수 있습니다.
+        self._lock = lock if lock is not None else nullcontext()
 
     def invoke(self, messages):
         return self._invoke(messages)

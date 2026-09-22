@@ -5,15 +5,28 @@ from threading import Lock
 from skala_agent.integrations.contracts import IncompleteModelOutputError, ModelOutputError
 from skala_agent.integrations.http import post_json
 
+# 호출이 끝나도 모델을 메모리에 얼마나 남겨둘지. 0이면 매 호출마다 모델을
+# 내렸다가 다시 올려, 관점 평가처럼 같은 모델을 수십 번 부르는 경로에서 적재
+# 비용을 반복해서 냅니다. 메모리가 부족한 환경은 0을 주입해 되돌립니다.
+DEFAULT_KEEP_ALIVE = "5m"
+
 
 class OllamaChat:
     def __init__(
-        self, model, *, base_url="http://localhost:11434", timeout=120, transport=None, lock=None
+        self,
+        model,
+        *,
+        base_url="http://localhost:11434",
+        timeout=120,
+        transport=None,
+        lock=None,
+        keep_alive=DEFAULT_KEEP_ALIVE,
     ):
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.transport = transport
+        self.keep_alive = keep_alive
         self._lock = lock if lock is not None else Lock()
 
     def invoke(self, messages):
@@ -28,7 +41,7 @@ class OllamaChat:
             "messages": messages,
             "stream": False,
             "think": False,
-            "keep_alive": 0,
+            "keep_alive": self.keep_alive,
             "options": {
                 "temperature": 0,
                 "num_ctx": 8192,
