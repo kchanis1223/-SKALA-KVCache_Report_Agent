@@ -175,3 +175,50 @@ def test_synthesis_uses_the_configured_model_for_traceable_findings():
     result = run({"analyses": {"domain": [assessment]}, "evidence": [evidence]}, provider)
 
     assert result["synthesis_findings"][0].summary == "근거가 특정 조건에 한정된다."
+
+
+def _tradeoff_fixture(supports_claim):
+    """5.3 trade-off가 잡히는 최소 조합. supports_claim만 바꿔 씁니다."""
+    assessment = Assessment(
+        technology_id="turboquant",
+        perspective="domain",
+        verdict="조건부 개선",
+        rationale="긴 context length에서 메모리 절감이 보고됐다.",
+        status="assessed",
+        details=DomainDetails(cost="조건부 개선", sla_risk="낮음"),
+        signals=[
+            Signal(question="어떤 조건에서 효과가 나타나는가?", grade="상", evidence_ids=["e-1"])
+        ],
+        evidence_ids=["e-1"],
+    )
+    evidence = Evidence(
+        id="e-1",
+        technology_id="turboquant",
+        claim="긴 context length에서 메모리 절감",
+        url="https://example.org/turboquant",
+        title="fixture",
+        excerpt="The result applies at a long context length.",
+        source_type="paper",
+        supports_claim=supports_claim,
+    )
+    return {
+        "analyses": {"domain": [assessment]},
+        "evidence": [evidence],
+        "synthesis": [assessment],
+        "synthesis_findings": [],
+    }
+
+
+def test_unverified_evidence_produces_no_findings():
+    """검증 전(supports_claim=False)에는 종합 findings가 만들어지지 않는다.
+
+    graph가 synthesize를 validate보다 먼저 실행하므로 첫 종합은 항상 이 상태입니다.
+    """
+    assert run(_tradeoff_fixture(supports_claim=False))["synthesis_findings"] == []
+
+
+def test_verified_evidence_produces_findings():
+    """검증 후(supports_claim=True)에는 같은 입력에서 findings가 만들어진다."""
+    findings = run(_tradeoff_fixture(supports_claim=True))["synthesis_findings"]
+    assert findings
+    assert all(f.evidence_ids == ["e-1"] for f in findings)

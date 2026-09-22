@@ -20,8 +20,10 @@ from skala_agent.workflow.graph import build_graph, initial_state
 class ResearchModel(ModelFixture):
     def invoke(self, messages):
         payload = json.loads(messages[1]["content"])
-        if isinstance(payload, list) or (isinstance(payload, dict) and "claim" in payload):
-            return '{"supports_claim":true}'
+        if "evidence" in payload:
+            return json.dumps(
+                {"results": [{"id": e["id"], "supports_claim": True} for e in payload["evidence"]]}
+            )
         output = json.loads(super().invoke(messages))
         for finding in output["findings"]:
             if finding["question_id"] in {"overview", "scope", "limitations", "experiments"}:

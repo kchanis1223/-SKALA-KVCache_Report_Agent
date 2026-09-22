@@ -23,7 +23,8 @@ def main():
         provider = build_provider(args.env_file)
     except ProviderUnavailableError as exc:
         parser.error(str(exc))
-    state = initial_state()
+    # build_provider()로 real provider를 만들어 쓰므로 real 실행입니다.
+    state = initial_state("real")
     technologies = state["selected_technologies"]
     research, research_evidence = provider.research(technologies)
     assessments, evidence = [], []

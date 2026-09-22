@@ -114,3 +114,58 @@ def test_provider_evidence_verdict_is_used_in_the_same_validation_pass():
 
     assert result["missing_evidence"] == []
     assert result["evidence"] == [evidence.model_copy(update={"supports_claim": True})]
+
+
+def test_only_referenced_evidence_is_sent_and_unused_candidates_are_preserved():
+    from types import SimpleNamespace
+
+    items = [
+        Evidence(
+            id=key,
+            technology_id="itme",
+            claim=key,
+            url=f"https://example.org/{key}",
+            title="fixture",
+            excerpt="fixture",
+            source_type="paper",
+        )
+        for key in ("assessment", "signal", "research", "finding", "unused", "historical")
+    ]
+    assessment = Assessment(
+        technology_id="itme",
+        perspective="trl",
+        verdict="TRL 6",
+        rationale="fixture",
+        status="assessed",
+        evidence_ids=["assessment"],
+        signals=[Signal(question="fixture?", grade="중", evidence_ids=["signal"])],
+    )
+    seen = []
+
+    class Provider:
+        def validate_evidence(self, targets):
+            seen.extend(item.id for item in targets)
+            return [item.model_copy(update={"supports_claim": True}) for item in targets]
+
+    state = {
+        "synthesis": [assessment],
+        "evidence": items,
+        "tech_analysis": {"itme": SimpleNamespace(evidence_ids=["research"])},
+        "synthesis_findings": [SimpleNamespace(evidence_ids=["finding"])],
+    }
+    result = run(state, Provider())
+    assert seen == ["assessment", "signal", "research", "finding"]
+    assert len(result["evidence"]) == 4
+    assert len(state["evidence"]) == 6
+    assert not any(item.supports_claim for item in state["evidence"])
+
+
+def test_no_referenced_evidence_does_not_call_provider():
+    class Provider:
+        def validate_evidence(self, targets):
+            raise AssertionError("no targets")
+
+    assert run({"synthesis": [], "evidence": []}, Provider()) == {
+        "missing_evidence": [],
+        "synthesis": [],
+    }

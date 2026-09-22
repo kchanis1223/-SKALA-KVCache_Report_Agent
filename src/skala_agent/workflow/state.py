@@ -1,4 +1,4 @@
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from skala_agent.schemas import (
     Assessment,
@@ -32,6 +32,9 @@ def merge_evidence(left: list[Evidence], right: list[Evidence]) -> list[Evidence
 
 
 class EvaluationState(TypedDict):
+    # 보고서가 real/demo를 추측하지 않도록 실행 모드를 명시적으로 전달합니다.
+    # 근거 수나 문구로 모드를 유추하면 근거가 적은 real 실행이 demo로 표시됩니다.
+    run_mode: Literal["demo", "real"]
     selected_technologies: list[Technology]
     domain: str
     tech_analysis: dict[str, TechAnalysis]

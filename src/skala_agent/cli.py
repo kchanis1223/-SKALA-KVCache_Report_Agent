@@ -44,7 +44,7 @@ def main():
     except ProviderUnavailableError as exc:
         raise SystemExit(f"실행 중단: {exc}") from exc
 
-    state = build_graph(provider).invoke(initial_state())
+    state = build_graph(provider).invoke(initial_state(args.mode))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(state["report"], encoding="utf-8")
     print(f"[{args.mode}] 보고서 생성: {args.output} (재검색 {state['retry_count']}회)")
