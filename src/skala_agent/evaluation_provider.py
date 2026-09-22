@@ -22,6 +22,10 @@ class ClaimSupport(BaseModel):
 
 
 class EvaluationProvider(DemoProvider):
+    # 1회 재검색에서 (기술, 관점) 그룹당 허용하는 검색 질의 수.
+    # 외부 backoff는 workflow 담당 범위입니다.
+    QUERIES_PER_GROUP = 2
+
     def __init__(self, model=None, search=None, *, models=None, retriever=None):
         if search is None or (model is None) == (models is None):
             raise ValueError("search와 model 또는 models 중 하나를 지정하세요.")
@@ -144,14 +148,42 @@ class EvaluationProvider(DemoProvider):
         return validate_evaluation_output(perspective, technologies, assessments, collected)
 
     def search_missing(self, missing):
-        collected = {}
+        """부족 근거를 (기술, 관점) 그룹으로 묶어 그룹당 최대 2질의로 재검색한다.
+
+        주석은 "기술·관점당 최대 2질의"였지만 실제 제한은 부족 항목마다 2질의
+        였습니다. 한 관점에 질문이 아홉 개면 검색 호출이 열여덟 번까지 늘어났고,
+        그 전부가 같은 그룹의 예산처럼 쓰였습니다.
+
+        질의 선택은 결정적입니다. 그룹 안에서 부족 항목 순서를 따라 질의를
+        훑고, 공백을 정규화해 처음 나온 것만 남긴 뒤 앞에서 두 개를 씁니다.
+        동률은 먼저 나온 질의가 이깁니다. 예산을 넘겨 검색되지 않은 부족 항목은
+        해결된 것으로 표시하지 않고 미해결로 남습니다.
+        """
+        groups: dict[tuple[str, str], list] = {}
         for item in missing:
             if item.perspective not in SUPPORTED or not item.retryable:
                 continue
-            # 1회 재검색에서 기술·관점당 최대 2질의. 외부 backoff는 workflow 담당 범위.
-            for query in list(dict.fromkeys(item.queries))[:2]:
+            groups.setdefault((item.technology_id, item.perspective), []).append(item)
+
+        collected = {}
+        for items in groups.values():
+            seen, ordered = set(), []
+            for item in items:
+                for query in item.queries:
+                    normalized = " ".join(query.split())
+                    if normalized and normalized not in seen:
+                        seen.add(normalized)
+                        ordered.append((normalized, item))
+            # 그룹마다 독립된 예산 2질의. 그룹 간에 예산을 빌려주지 않습니다.
+            for query, item in ordered[: self.QUERIES_PER_GROUP]:
                 for document in self.search.search(query):
-                    claim = f"{item.technology_id}: 추가 검색 자료 — {document.title}"
+                    # claim에 문서 제목을 넣으면 validate_evidence가 "발췌가 주장을
+                    # 지지하는가"를 판정할 대상이 없어 재검색 근거가 전부 기각됩니다.
+                    # 부족 항목의 실제 주장을 넣습니다.
+                    #
+                    # "추가 검색 자료" 표식은 유지합니다. web_evaluation이 이
+                    # 접두사로 재검색 근거를 식별해 모델에 우선 전달합니다.
+                    claim = f"{item.technology_id}: 추가 검색 자료 — {item.claim}"
                     eid = evidence_id(
                         owner=item.perspective,
                         technology_id=item.technology_id,
