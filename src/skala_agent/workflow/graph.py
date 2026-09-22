@@ -117,7 +117,7 @@ def initial_state(run_mode: str = "demo") -> EvaluationState:
 
 
 def _logged_synthesize(state, provider):
-    result = synthesis.run(state, provider)
+    result = synthesis.run(state, provider, generate=False)
     logger.info("종합 완료 (판정 %d건)", len(result["synthesis"]))
     return result
 

@@ -11,7 +11,7 @@ def test_openai_responses_uses_structured_output_and_reasoning_effort():
         assert request.headers["authorization"] == "Bearer test-key"
         assert str(request.url) == "https://api.openai.com/v1/responses"
         payload = json.loads(request.content)
-        assert payload["model"] == "gpt-5.6-terra"
+        assert payload["model"] == "gpt-5.4mini"
         assert payload["reasoning"] == {"effort": "low"}
         assert payload["text"]["format"]["type"] == "json_schema"
         assert payload["text"]["format"]["schema"]["additionalProperties"] is False
@@ -29,7 +29,7 @@ def test_openai_responses_uses_structured_output_and_reasoning_effort():
         )
 
     model = OpenAIResponses(
-        "gpt-5.6-terra",
+        "gpt-5.4mini",
         api_key="test-key",
         reasoning_effort="low",
         transport=httpx.MockTransport(handler),

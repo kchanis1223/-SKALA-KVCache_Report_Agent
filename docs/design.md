@@ -358,14 +358,14 @@ TRL은 SWOT처럼 상대적·주관적인 척도가 아니라 "지금 몇 단계
 
 ```python
 {
-  "tech": "TurboQuant",
-  "perspective": "market",
-  "axis": "상용화 및 실제 채택",
-  "verdict": "시범 적용",
-  "signals": ["vLLM 이슈에서 논의 중"],
-  "evidence_pos": [{"claim": "...", "source": "https://..."}],  # 1건 이상 필수
-  "evidence_neg": [{"claim": "...", "source": "https://..."}],  # 1건 이상 필수
-  "confidence": "low"        # 출처 2건 미만 → low
+    "tech": "TurboQuant",
+    "perspective": "market",
+    "axis": "상용화 및 실제 채택",
+    "verdict": "시범 적용",
+    "signals": ["vLLM 이슈에서 논의 중"],
+    "evidence_pos": [{"claim": "...", "source": "https://..."}],  # 1건 이상 필수
+    "evidence_neg": [{"claim": "...", "source": "https://..."}],  # 1건 이상 필수
+    "confidence": "low",  # 출처 2건 미만 → low
 }
 ```
 

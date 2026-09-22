@@ -43,10 +43,22 @@
 | --- | --- | --- |
 | 기술 조사 | selected_technologies | `research(technologies) -> (dict[str, TechAnalysis], list[Evidence])` |
 | 관점별 평가 | perspective, technologies, domain, tech_analysis, evidence | `assess(...) -> (list[Assessment], list[Evidence])` |
-| 종합 | analyses, evidence | `synthesis`와 `synthesis_findings`. 외부 검색 없음 |
+| 중간 종합 | analyses, evidence | 규칙 기반 `synthesis`와 `synthesis_findings`. 모델 호출 없음 |
 | 검증 | synthesis, evidence | provider의 `validate_evidence(evidence) -> list[Evidence]`로 지지 여부를 갱신한 뒤 정규화한 synthesis와 missing_evidence 반환 |
 | 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신. 부족 항목을 `(technology_id, perspective)`로 묶어 그룹당 최대 2질의. 그룹 간에 예산을 빌려주지 않고, 예산을 넘긴 항목은 미해결로 남음 |
-| 보고서 | synthesis, evidence, missing_evidence, 입력 기술·도메인, retry_count | report. 외부 검색 없음 |
+| 최종 종합 | 검증된 synthesis, evidence, missing_evidence | 종료 직전 LLM 종합 1회 및 생성 문장 지지 검사. `synthesis_findings`만 갱신 |
+| 보고서 | synthesis, synthesis_findings, evidence, missing_evidence, 입력 기술·도메인, retry_count | 결정적 Markdown 생성 후 LLM 본문 다듬기 및 의미 검사. 외부 검색 없음 |
+
+기본 real CLI의 `TimeoutProvider`는 synthesis/report/validation 모델을 시간 제한이 있는
+proxy로 전달합니다. 각 최종 단계 모델 호출도 provider timeout의 적용을 받습니다.
+최종 종합은 확정 가능한 평가와 연결된 검증 근거만 입력하며 ID/기술/평가 연결을 검사한 뒤
+validation 모델로 생성 summary의 지지를 확인합니다. 실패하면 해당 LLM 출력을 버리고
+로그에 명시하며 규칙 결과를 유지합니다. 최종 단계는 검증이 정규화한 synthesis를 덮지 않습니다.
+보고서 LLM은 목차·인용·참고문헌·판정 목록·수치·보류 문장을 보존해야 하고, 수정된 서술은
+validation 모델로 기존 검증 보고서와 대조합니다. 검사 실패나 timeout이면 명시적으로
+실행을 중단하며 미검증 본문을 저장하지 않습니다. 의미 검사는 LLM 판정이므로 완전한
+사실성 보장은 아닙니다. demo와 `USE_SINGLE_MODEL=true`의 결정적 경로는 유지합니다.
+실 API 테스트는 `RUN_LIVE_LLM_TESTS=1`과 API 키가 둘 다 있을 때만 실행합니다.
 
 각 `assess()` 호출은 선택된 기술마다 정확히 하나의 결과를 반환해야 합니다. 기술 ID와 관점이 다르거나 빠지면 계약 오류입니다. `research()`도 선택된 기술 전체를 키로 반환하며, 키와 `TechAnalysis.technology_id`가 일치해야 합니다. Provider 경계에서 Pydantic으로 dict를 검증할 수 있지만 반환 계약은 해당 모델 기준입니다.
 
@@ -136,7 +148,7 @@ CLI는 `--graph`(컴파일된 그래프를 mermaid로 출력), `--dry-run`(외�
 
 ## 공통 모델 배정
 
-`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search/trl/market/stakeholder/domain은 Qwen3-4B/Ollama, synthesis는 GPT-5.6 Sol, validation/report는 GPT-5.6 Terra를 사용합니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 Qwen3-4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
+`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search/trl/market/stakeholder/domain은 Qwen3-4B/Ollama, synthesis/validation/report는 GPT-5.4mini를 사용합니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 Qwen3-4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
 
 ## 이해관계자·도메인 구현 (#6)
 

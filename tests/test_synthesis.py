@@ -157,6 +157,8 @@ def test_synthesis_uses_the_configured_model_for_traceable_findings():
     class Model:
         def invoke_structured(self, messages, schema):
             assert messages[0]["role"] == "developer" and schema["type"] == "object"
+            if schema.get("title") == "GroundingVerdict":
+                return json.dumps({"supported": True})
             return json.dumps(
                 {
                     "findings": [

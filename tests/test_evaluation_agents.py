@@ -46,7 +46,8 @@ class ModelFixture:
                 {"results": [{"id": e["id"], "supports_claim": False} for e in payload["evidence"]]}
             )
         findings = []
-        for q in payload["questions"]:
+        questions = payload.get("questions", []) if isinstance(payload, dict) else []
+        for q in questions:
             answer = (
                 self.answers.get(q["id"], "unknown")
                 if self.answers is not None

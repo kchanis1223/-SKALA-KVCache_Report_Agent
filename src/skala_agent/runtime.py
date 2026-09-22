@@ -85,6 +85,16 @@ def call_with_timeout(func, seconds: float, /, *args, **kwargs):
     return box["value"]
 
 
+class TimeoutModel:
+    """최종 단계 모델 호출에도 provider와 같은 시간 상한을 적용합니다."""
+
+    def __init__(self, inner, seconds):
+        self.inner, self.seconds = inner, seconds
+
+    def invoke_structured(self, messages, schema):
+        return call_with_timeout(self.inner.invoke_structured, self.seconds, messages, schema)
+
+
 class TimeoutProvider:
     """provider 호출마다 상한을 적용합니다.
 
@@ -118,6 +128,9 @@ class TimeoutProvider:
         self.seconds = seconds
         self.max_abandoned = max_abandoned
         self.abandoned: Counter[str] = Counter()
+        for name in ("synthesis_model", "report_model", "validation_model"):
+            model = getattr(inner, name, None)
+            setattr(self, name, TimeoutModel(model, seconds) if model is not None else None)
 
     def research(self, technologies):
         return call_with_timeout(self.inner.research, self.seconds, technologies)
