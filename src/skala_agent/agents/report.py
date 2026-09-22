@@ -28,15 +28,26 @@ def run(state):
         "",
     ]
     used = {}
+    missing_by_assessment = {
+        (item.technology_id, item.perspective): item for item in state["missing_evidence"]
+    }
     for item in state["synthesis"]:
-        sources = valid_sources(item, state["evidence"])
+        sources = dict(sorted(valid_sources(item, state["evidence"]).items()))
         label = f"{item.technology_id} / {item.perspective}"
-        if item.status != "assessed" or not sources:
-            reason = f"평가 실패: {item.error.code}" if item.error else "검증된 근거 부족"
+        missing = missing_by_assessment.get((item.technology_id, item.perspective))
+        if item.status != "assessed" or not sources or missing:
+            reason = (
+                missing.reason
+                if missing
+                else f"평가 실패: {item.error.code}"
+                if item.error
+                else "검증된 근거 부족"
+            )
             lines.append(f"- {label}: 판단 보류 ({reason})")
             continue
-        used.update(sources)
-        refs = " ".join(f"[{e.title}]({url})" for url, e in sources.items())
+        for url, evidence in sources.items():
+            used.setdefault(url, evidence)
+        refs = " ".join(f"[{list(used).index(url) + 1}]" for url in sources)
         lines.append(f"- {label}: {item.verdict} (confidence: {item.confidence}) {refs}")
     lines += [
         "",
@@ -50,7 +61,9 @@ def run(state):
     ]
     lines += [f"- {m.technology_id}/{m.perspective}: {m.reason}" for m in state["missing_evidence"]]
     lines += ["", "## REFERENCE", ""]
-    lines += [f"- [{e.title}]({url})" for url, e in sorted(used.items())]
+    lines += [
+        f"- [{index}] [{e.title}]({url})" for index, (url, e) in enumerate(used.items(), start=1)
+    ]
     if not used:
         lines.append("검증된 인용 출처 없음.")
     return {"report": "\n".join(lines) + "\n"}
