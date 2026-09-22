@@ -29,7 +29,11 @@ class OllamaChat:
             "stream": False,
             "think": False,
             "keep_alive": 0,
-            "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 2048},
+            "options": {
+                "temperature": 0,
+                "num_ctx": 8192,
+                "num_predict": 4096 if schema is not None else 2048,
+            },
         }
         if schema is not None:
             payload["format"] = schema

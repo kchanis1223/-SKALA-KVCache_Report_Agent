@@ -101,7 +101,10 @@ class RetrieverFixture:
             RetrievalResult(
                 chunk=Chunk(
                     id=f"review-p{i}-1",
-                    text=f"Cost decreased 20% on GPU A batch 8. Section {i}.",
+                    text=(
+                        "Cost decreased 20% on GPU A batch 8. TTFT TPOT unchanged. "
+                        f"Accuracy preserved. Section {i}."
+                    ),
                     paper_id="review",
                     camp="sw",
                     role=role,

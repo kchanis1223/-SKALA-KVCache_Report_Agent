@@ -28,7 +28,7 @@ class SearchFixture:
                 title="Synthetic fixture",
                 source_type=self.kind,
                 url=f"https://example.org/{i}",
-                content=f"Fixture passage {i}.",
+                content=f"Fixture passage {i}. TurboQuant and ITME.",
             )
             for i in range(2)
         ]
@@ -190,7 +190,7 @@ def test_retry_search_candidates_reach_model_and_ids_remain_stable():
                         title="New evidence",
                         source_type="official",
                         url="https://new.example/paper",
-                        content="New test evidence.",
+                        content="New TurboQuant test evidence.",
                     )
                 ]
             return super().search(query)

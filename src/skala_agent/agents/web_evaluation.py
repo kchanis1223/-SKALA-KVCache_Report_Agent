@@ -1,16 +1,23 @@
 """모델·웹검색·논문 검색을 주입받는 4개 관점 평가. 공유 schema는 변경하지 않습니다."""
 
+from datetime import date
 from importlib.resources import files
 from itertools import zip_longest
 
+from skala_agent.agents.citations import align_citations, source_quote
 from skala_agent.agents.context_rubrics import (
     DOMAIN_QUESTIONS,
     STAKEHOLDER_QUESTIONS,
-    STAKEHOLDERS,
     domain_details,
     stakeholder_details,
 )
 from skala_agent.agents.evaluation_rubrics import MARKET_QUESTIONS, TRL_QUESTIONS, market_details
+from skala_agent.agents.source_scope import (
+    ANCHORS,
+    STAKEHOLDER_SEARCH_TERMS,
+    explicit_sla_negative,
+    mentions_technology,
+)
 from skala_agent.evidence import evidence_id
 from skala_agent.integrations.contracts import (
     EvaluationDraft,
@@ -34,11 +41,9 @@ PRIMARY = {"paper", "official", "market_report"}
 
 
 def search_queries(perspective, technology, domain):
+    anchor = ANCHORS.get(technology.id, f'"{technology.name}"')
     if perspective == "stakeholder":
-        return [
-            f'"{technology.name}" {name} adoption concerns statement'
-            for name in STAKEHOLDERS.values()
-        ]
+        return [f"{anchor} {terms}" for terms in STAKEHOLDER_SEARCH_TERMS]
     suffixes = {
         "trl": (
             "prototype benchmark validation",
@@ -56,13 +61,17 @@ def search_queries(perspective, technology, domain):
             "framework ecosystem vendor support dependency",
         ),
     }
-    return [f'"{technology.name}" {domain} {suffix}' for suffix in suffixes[perspective]]
+    return [f"{anchor} {suffix}" for suffix in suffixes[perspective]]
 
 
 def load_prompt(perspective: str) -> str:
     if perspective not in SUPPORTED:
         raise ValueError("지원하지 않는 평가 관점입니다.")
-    return files("skala_agent.prompts").joinpath(f"{perspective}.md").read_text(encoding="utf-8")
+    # 현재 시점을 사전학습 지식으로 추정해 2026년 자료를 임의로 배제하지 않게 합니다.
+    prompt = files("skala_agent.prompts").joinpath(f"{perspective}.md").read_text(encoding="utf-8")
+    return (
+        f"평가 기준일: {date.today().isoformat()}. 현재 시점을 임의로 추정하지 마세요.\n" + prompt
+    )
 
 
 def bounded_documents(documents: list[SearchDocument]) -> list[SearchDocument]:
@@ -86,7 +95,12 @@ class WebEvaluator:
         batches = [
             self.search.search(query) for query in search_queries(perspective, technology, domain)
         ]
-        documents = [d for row in zip_longest(*batches) for d in row if d is not None]
+        documents = [
+            d
+            for row in zip_longest(*batches)
+            for d in row
+            if d is not None and mentions_technology(d, technology)
+        ]
         rag_documents = []
         if perspective == "domain" and self.retriever is not None:
             for query in search_queries(perspective, technology, domain):
@@ -166,7 +180,10 @@ class WebEvaluator:
                     "sources": [d.model_dump(mode="json") for d in documents],
                 },
             )
-            draft = EvaluationDraft.model_validate(draft)
+            draft = align_citations(EvaluationDraft.model_validate(draft), documents)
+            draft = repair_citations(
+                self.model, perspective, technology, domain, questions, documents, draft
+            )
         else:
             draft = EvaluationDraft(findings=[])
         result, sources = compile_assessment(
@@ -175,6 +192,47 @@ class WebEvaluator:
         if perspective == "domain" and self.retriever is None:
             result.rationale += " 논문 Retriever 미연결: 웹 및 기존 근거만 사용했습니다."
         return result, sources
+
+
+def repair_citations(model, perspective, technology, domain, questions, documents, draft):
+    """원문과 다른 인용만 한 번 재추출합니다. 두 번째도 잘못되면 compile에서 실패합니다."""
+    source_map = {d.id: d.content for d in documents}
+    expected = {q.id for q in questions}
+    ids = [f.question_id for f in draft.findings]
+    if len(set(ids)) != len(ids) or set(ids) != expected:
+        return draft  # 질문 누락/중복은 원래 계약 검증에서 거부합니다.
+    bad = {
+        f.question_id
+        for f in draft.findings
+        if f.answer != "unknown"
+        and any(
+            c.source_id not in source_map or c.quote not in source_map[c.source_id]
+            for c in f.citations
+        )
+    }
+    if not bad:
+        return draft
+    repaired = EvaluationDraft.model_validate(
+        model.extract(
+            load_prompt(perspective) + "\n이전 응답의 인용이 원문과 달랐습니다. "
+            "이번 payload의 questions 개수만 답하세요. "
+            "전체 관점의 질문 개수 안내는 이번 재추출에 적용하지 않습니다. "
+            "원문 언어를 유지하고 번역하지 마세요. content에 있는 연속된 원문을 그대로 복사하세요. "
+            "의역·문장 결합·생략 기호 추가를 금지합니다. "
+            "정확한 인용을 못 찾으면 unknown과 빈 citations를 반환하세요.",
+            {
+                "technology": technology.model_dump(),
+                "domain": domain,
+                "questions": [{"id": q.id, "text": q.text} for q in questions if q.id in bad],
+                "sources": [d.model_dump(mode="json") for d in documents],
+            },
+        )
+    )
+    repaired = align_citations(repaired, documents)
+    replacements = {f.question_id: f for f in repaired.findings}
+    if len(replacements) != len(repaired.findings) or set(replacements) != bad:
+        raise ModelOutputError("인용 재추출 결과의 질문 ID가 다릅니다.")
+    return EvaluationDraft(findings=[replacements.get(f.question_id, f) for f in draft.findings])
 
 
 def compile_assessment(perspective, technology, questions, documents, draft, existing):
@@ -243,12 +301,21 @@ def compile_assessment(perspective, technology, questions, documents, draft, exi
                 raise ModelOutputError("측정값에 수치가 없습니다.")
             if not any(
                 all(
-                    part in quote
+                    source_quote(quote, part) is not None
                     for part in (measurement.metric, measurement.value, measurement.conditions)
                 )
                 for quote in matching
             ):
                 raise ModelOutputError("수치 또는 실험 조건이 연결된 원문 인용에 없습니다.")
+        if (
+            perspective == "domain"
+            and answer == "no"
+            and not explicit_sla_negative(question.id, [c.quote for c in citations])
+        ):
+            answer = "unknown"
+            for item in references:
+                evidence.pop(item.id, None)
+            references = []
         # 인용 없는 yes/no를 확정 답변으로 인정하지 않습니다.
         if not references:
             answer = "unknown"

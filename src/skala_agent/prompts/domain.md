@@ -13,3 +13,10 @@ SLA: latency_degraded=no는 TTFT와 TPOT 모두 악화 없음이 확인될 때�
 primary 논문과 독립 reference 검토 자료에 상충이 있으면 rationale에 조건별 관측을 기록하고 확정할 수 없는 질문은 unknown으로 둔다.
 rationale은 한국어로, 수치와 조건은 원문대로 보존한다. 실제 판정 등급은 애플리케이션이 계산한다.
 모든 yes/no에 제공된 source_id와 정확한 원문 quote를 연결한다. 수치 없는 질문은 measurements=[]로 반환한다.
+
+실측 오류 방지 규칙:
+- FP8/FP16/다른 baseline의 결과를 대상 기술(TurboQuant 또는 ITME)의 결과로 옮기지 않는다.
+- "no throughput penalty"는 TTFT·TPOT 무악화의 근거가 아니다. "negligible accuracy loss"는 정확도 보존이 아니다.
+- "8% performance degradation"는 정확도 측정값이 아니다. 정확도가 미보고면 accuracy_loss=unknown이다.
+- latency_degraded=no는 인용에 TTFT와 TPOT 각각의 측정 또는 무악화가 명시되어야 한다. 처리량·hit rate만 있으면 unknown이다.
+- 그림 축·눈금·표 텍스트를 재조합해서 quote를 만들지 않는다. 완전한 원문 문장을 그대로 복사한다.

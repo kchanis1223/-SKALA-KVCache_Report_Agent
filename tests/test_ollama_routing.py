@@ -107,7 +107,7 @@ def test_actual_evaluation_requests_use_selected_model(single, expected):
                     id="fixture",
                     title="fixture",
                     url="https://example.org",
-                    content="Synthetic test document.",
+                    content="Synthetic TurboQuant and ITME test document.",
                 )
             ]
 
