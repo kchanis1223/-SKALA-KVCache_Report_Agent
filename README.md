@@ -44,7 +44,8 @@ trade-off가 달라 동일한 평가 프레임에서 비교합니다.
 
 - Framework: LangGraph
 - LLM/Generator: gpt-5.6-terra — Report Generation Agent, reasoning effort `low`
-- LLM/Judge: gpt-5.6-sol — Synthesis Agent의 관점 간 상충·trade-off·근거 참조 판단, reasoning effort `medium`
+- LLM/Judge: gpt-5.6-terra — Validation Agent의 주장·원문 발췌 지지 여부 판정, reasoning effort `low`
+- LLM/Synthesis: gpt-5.6-sol — 관점 간 상충·trade-off·근거 참조 판단, reasoning effort `medium`
 - Retrieval: numpy VectorStore, Retriever — Hit@1, Hit@3, MRR
 - Embedding: BAAI/bge-m3 — 한국어 질의와 영어 기술 문서 검색을 고려한 다국어 임베딩
 
