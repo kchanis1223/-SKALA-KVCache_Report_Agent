@@ -164,7 +164,7 @@ def test_synthesis_uses_the_configured_model_for_traceable_findings():
                             "technology_id": "turboquant",
                             "question": "condition_limited",
                             "summary": "근거가 특정 조건에 한정된다.",
-                            "assessment_refs": [["domain", "turboquant"]],
+                            "assessment_refs": [["turboquant", "domain"]],
                             "evidence_ids": ["evidence-1"],
                         }
                     ]

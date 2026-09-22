@@ -89,10 +89,18 @@ def _generated_findings(state, model):
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
     ]
     try:
-        draft = SynthesisDraft.model_validate_json(
-            model.invoke_structured(messages, SynthesisDraft.model_json_schema())
-        )
-    except (ValidationError, TypeError, ValueError) as exc:
+        output = json.loads(model.invoke_structured(messages, SynthesisDraft.model_json_schema()))
+        for finding in output.get("findings", []):
+            finding["assessment_refs"] = [
+                [reference[1], reference[0]]
+                if len(reference) == 2
+                and reference[0] not in PERSPECTIVES
+                and reference[1] in PERSPECTIVES
+                else reference
+                for reference in finding.get("assessment_refs", [])
+            ]
+        draft = SynthesisDraft.model_validate(output)
+    except (AttributeError, ValidationError, TypeError, ValueError) as exc:
         raise ModelOutputError("종합 모델의 구조화 출력이 유효하지 않습니다.") from exc
     assessments = {
         (item.perspective, item.technology_id): item

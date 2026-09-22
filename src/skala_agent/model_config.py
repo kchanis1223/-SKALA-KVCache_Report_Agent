@@ -24,7 +24,7 @@ AGENTS = (
 )
 OLLAMA_AGENTS = {"research", "additional_search", "trl", "market", "stakeholder", "domain"}
 OPENAI_MODELS = {
-    "synthesis": ("gpt-5.6-sol", "medium"),
+    "synthesis": ("gpt-5.6-terra", "medium"),
     "validation": ("gpt-5.6-terra", "low"),
     "report": ("gpt-5.6-terra", "low"),
 }

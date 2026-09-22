@@ -131,7 +131,7 @@ CLI는 `--graph`(컴파일된 그래프를 mermaid로 출력), `--dry-run`(외�
 
 ## 공통 모델 배정
 
-`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search/trl/market/stakeholder/domain은 Qwen3-4B/Ollama, synthesis는 GPT-5.6 Sol, validation/report는 GPT-5.6 Terra를 사용합니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 Qwen3-4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
+`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search/trl/market/stakeholder/domain은 Qwen3-4B/Ollama, synthesis/validation/report는 GPT-5.6 Terra를 사용합니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 Qwen3-4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
 
 ## 이해관계자·도메인 구현 (#6)
 
