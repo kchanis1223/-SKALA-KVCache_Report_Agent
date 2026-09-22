@@ -184,6 +184,16 @@ def build_graph(provider: Provider | None = None):
             len(evidence),
             "/".join(sorted({a.status for a in assessments})),
         )
+        # provider가 반환한 실패 사유를 남깁니다. status만 보면 원인을 알 수 없어
+        # 재현 시 별도 계측이 필요했습니다.
+        for failed in (a for a in assessments if a.status == "failed" and a.error):
+            logger.warning(
+                "[%s] %s 판단 보류: %s — %s",
+                key,
+                failed.technology_id,
+                failed.error.code,
+                failed.error.message,
+            )
         return {"analyses": {key: assessments}, "evidence": evidence}
 
     def dispatch(state):

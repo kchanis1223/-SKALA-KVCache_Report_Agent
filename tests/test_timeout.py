@@ -67,3 +67,59 @@ def test_stuck_perspective_is_skipped_after_repeated_timeouts():
     # 나머지 관점은 차단되지 않습니다.
     assert all(provider.abandoned[key] == 0 for key in ("trl", "market", "stakeholder"))
     assert result["report"]
+
+
+def test_recovered_perspective_is_not_permanently_blocked():
+    """상한을 넘겼다가 성공한 관점은 방치 누적이 초기화된다.
+
+    실측에서 domain이 두 번 상한을 넘긴 뒤 재평가를 건너뛰었고, 같은 회차에서
+    나머지 세 관점은 성공했다. 느렸다가 회복하는 관점을 영구 배제하지 않도록
+    연속 실패만 세고 성공 시 0으로 되돌린다.
+    """
+
+    class SlowThenFast(DemoProvider):
+        def __init__(self):
+            self.calls = 0
+
+        def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+            self.calls += 1
+            if self.calls == 1:
+                time.sleep(5)
+            return super().assess(perspective, technologies, domain, tech_analysis, evidence)
+
+    provider = TimeoutProvider(SlowThenFast(), 0.2, max_abandoned=2)
+    args = ("domain", [], "테스트", {}, [])
+
+    with pytest.raises(TimeoutError):
+        provider.assess(*args)
+    assert provider.abandoned["domain"] == 1
+
+    provider.assess(*args)  # 두 번째는 상한 안에 끝난다
+    assert provider.abandoned["domain"] == 0  # 누적이 초기화된다
+
+    provider.assess(*args)  # 이후에도 차단되지 않는다
+
+
+def test_consecutive_timeouts_still_stop_the_perspective():
+    """연속으로 상한을 넘기면 남은 재평가는 건너뛴다."""
+
+    class AlwaysSlow(DemoProvider):
+        def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+            time.sleep(5)
+
+    provider = TimeoutProvider(AlwaysSlow(), 0.1, max_abandoned=2)
+    args = ("domain", [], "테스트", {}, [])
+
+    for _ in range(2):
+        with pytest.raises(TimeoutError):
+            provider.assess(*args)
+
+    with pytest.raises(TimeoutError, match="연속 2회 넘겨"):
+        provider.assess(*args)  # 세 번째는 호출하지 않고 즉시 실패
+
+
+def test_default_timeout_covers_measured_local_model_latency():
+    """기본 상한이 로컬 모델 실측 소요(관점당 295~600초)를 덮는다."""
+    from skala_agent.runtime import DEFAULT_TIMEOUT_SECONDS
+
+    assert DEFAULT_TIMEOUT_SECONDS >= 600
