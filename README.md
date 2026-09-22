@@ -51,12 +51,6 @@ python app.py --mode real --timeout 600  # Ollama 연결
 skala-evaluate --perspective all      # 네 관점 모두 평가
 ```
 
-저사양 PC는 `.env`의 `USE_SINGLE_MODEL=true`만 바꾸고 4B만 다운로드합니다. `.env`와 `.env.local`을 자동 로딩하며 환경변수 > `.env.local` > `.env` 순서로 우선합니다. 기존 uv 사용자는 `uv sync --locked`, `uv run skala-evaluate --perspective all`로 실행할 수 있습니다.
-
-로컬 모델 추론에는 LLM API 키가 필요 없습니다. 실시간 웹검색은 기존 Tavily를 사용하므로 `.env.local`에 Tavily 키를 입력해야 합니다.
-
-전 Agent의 모델 정책을 제공하지만, 현재 실제 LLM 구현은 #5의 TRL·시장성과 #6의 이해관계자·도메인입니다. 도메인 논문 검색은 Retriever 주입을 지원하며, 기본 실행에서는 실제 RAG 미연결을 표시합니다. 다른 Agent는 해당 담당자의 구현이 필요하며, 전체 그래프에서는 미구현·미검증 결과를 판단 보류로 유지합니다. 상세 설정은 [모델 실행 안내](docs/issue-5-evaluation.md), #6의 판정·RAG 연결은 [이해관계자·도메인 안내](docs/issue-6-evaluation.md)를 참고하세요.
-
 ## 구성
 
 ```text
