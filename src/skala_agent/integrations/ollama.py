@@ -2,7 +2,7 @@
 
 from threading import Lock
 
-from skala_agent.integrations.contracts import ModelOutputError
+from skala_agent.integrations.contracts import IncompleteModelOutputError, ModelOutputError
 from skala_agent.integrations.http import post_json
 
 
@@ -41,6 +41,8 @@ class OllamaChat:
             result = post_json(
                 f"{self.base_url}/api/chat", payload, timeout=self.timeout, transport=self.transport
             )
+        if isinstance(result, dict) and result.get("done_reason") == "length":
+            raise IncompleteModelOutputError("Ollama 구조화 응답이 생성 한도에서 잘렸습니다.")
         try:
             content = result["message"]["content"]
             if (

@@ -178,6 +178,7 @@ class WebEvaluator:
                     else None,
                     "questions": [{"id": q.id, "text": q.text} for q in questions],
                     "sources": [d.model_dump(mode="json") for d in documents],
+                    "exact_quotes": True,
                 },
             )
             draft = align_citations(EvaluationDraft.model_validate(draft), documents)
@@ -195,7 +196,7 @@ class WebEvaluator:
 
 
 def repair_citations(model, perspective, technology, domain, questions, documents, draft):
-    """원문과 다른 인용만 한 번 재추출합니다. 두 번째도 잘못되면 compile에서 실패합니다."""
+    """원문과 다른 인용·측정값만 한 번 재추출. 재실패는 compile에서 거부합니다."""
     source_map = {d.id: d.content for d in documents}
     expected = {q.id for q in questions}
     ids = [f.question_id for f in draft.findings]
@@ -205,9 +206,12 @@ def repair_citations(model, perspective, technology, domain, questions, document
         f.question_id
         for f in draft.findings
         if f.answer != "unknown"
-        and any(
-            c.source_id not in source_map or c.quote not in source_map[c.source_id]
-            for c in f.citations
+        and (
+            any(
+                c.source_id not in source_map or c.quote not in source_map[c.source_id]
+                for c in f.citations
+            )
+            or any(not measurement_is_cited(m, f.citations) for m in f.measurements)
         )
     }
     if not bad:
@@ -219,12 +223,16 @@ def repair_citations(model, perspective, technology, domain, questions, document
             "전체 관점의 질문 개수 안내는 이번 재추출에 적용하지 않습니다. "
             "원문 언어를 유지하고 번역하지 마세요. content에 있는 연속된 원문을 그대로 복사하세요. "
             "의역·문장 결합·생략 기호 추가를 금지합니다. "
+            "measurements의 metric/value/conditions도 같은 citation.quote에서 복사하세요. "
+            "실험 조건 또는 수치를 원문에서 확인할 수 없으면 unknown으로 반환하세요. "
+            "인용은 출력 스키마에 허용된 해당 출처의 원문 후보만 선택하세요. "
             "정확한 인용을 못 찾으면 unknown과 빈 citations를 반환하세요.",
             {
                 "technology": technology.model_dump(),
                 "domain": domain,
                 "questions": [{"id": q.id, "text": q.text} for q in questions if q.id in bad],
                 "sources": [d.model_dump(mode="json") for d in documents],
+                "exact_quotes": True,
             },
         )
     )
@@ -233,6 +241,17 @@ def repair_citations(model, perspective, technology, domain, questions, document
     if len(replacements) != len(repaired.findings) or set(replacements) != bad:
         raise ModelOutputError("인용 재추출 결과의 질문 ID가 다릅니다.")
     return EvaluationDraft(findings=[replacements.get(f.question_id, f) for f in draft.findings])
+
+
+def measurement_is_cited(measurement, citations):
+    return any(char.isdigit() for char in measurement.value) and any(
+        c.source_id == measurement.source_id
+        and all(
+            source_quote(c.quote, part) is not None
+            for part in (measurement.metric, measurement.value, measurement.conditions)
+        )
+        for c in citations
+    )
 
 
 def compile_assessment(perspective, technology, questions, documents, draft, existing):
@@ -260,6 +279,7 @@ def compile_assessment(perspective, technology, questions, documents, draft, exi
         citations = finding.citations if finding else []
         if answer == "unknown":
             citations = []
+            measurements = []
         references = []
         for citation in citations:
             document = source_map.get(citation.source_id)
@@ -296,16 +316,7 @@ def compile_assessment(perspective, technology, questions, documents, draft, exi
             evidence[eid] = item
             references.append(item)
         for measurement in measurements:
-            matching = [c.quote for c in citations if c.source_id == measurement.source_id]
-            if not any(char.isdigit() for char in measurement.value):
-                raise ModelOutputError("측정값에 수치가 없습니다.")
-            if not any(
-                all(
-                    source_quote(quote, part) is not None
-                    for part in (measurement.metric, measurement.value, measurement.conditions)
-                )
-                for quote in matching
-            ):
+            if not measurement_is_cited(measurement, citations):
                 raise ModelOutputError("수치 또는 실험 조건이 연결된 원문 인용에 없습니다.")
         if (
             perspective == "domain"

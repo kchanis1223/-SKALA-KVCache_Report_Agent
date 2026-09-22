@@ -1,6 +1,7 @@
 """4개 관점 평가 provider. 모델 객체만 주입하여 로컬/API 구현을 교체합니다."""
 
 import json
+import logging
 
 from pydantic import BaseModel, ValidationError
 
@@ -12,6 +13,8 @@ from skala_agent.integrations.contracts import ModelOutputError, ServiceConfigur
 from skala_agent.integrations.structured import StructuredExtractor
 from skala_agent.providers import DemoProvider
 from skala_agent.schemas import AgentError, Assessment, Evidence
+
+logger = logging.getLogger(__name__)
 
 
 class ClaimSupport(BaseModel):
@@ -104,6 +107,13 @@ class EvaluationProvider(DemoProvider):
                 ServiceConfigurationError,
                 ModelOutputError,
             ) as exc:
+                if isinstance(exc, ModelOutputError):
+                    logger.warning(
+                        "평가 출력 검증 실패 (%s/%s): %s",
+                        perspective,
+                        technology.id,
+                        exc,
+                    )
                 assessment = Assessment(
                     technology_id=technology.id,
                     perspective=perspective,
@@ -111,7 +121,9 @@ class EvaluationProvider(DemoProvider):
                     rationale="검색 또는 평가 모델 호출에 실패했습니다.",
                     status="failed",
                     error=AgentError(
-                        code=type(exc).__name__,
+                        code="ModelOutputError"
+                        if isinstance(exc, ModelOutputError)
+                        else type(exc).__name__,
                         message="검색·모델 설정 및 응답을 확인하세요.",
                         retryable=isinstance(exc, (TimeoutError, ConnectionError)),
                     ),
