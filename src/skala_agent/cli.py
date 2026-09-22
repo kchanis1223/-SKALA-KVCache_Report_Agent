@@ -1,7 +1,12 @@
 import argparse
 from pathlib import Path
 
-from skala_agent.runtime import MODES, ProviderUnavailableError, load_provider
+from skala_agent.runtime import (
+    DEFAULT_TIMEOUT_SECONDS,
+    MODES,
+    ProviderUnavailableError,
+    load_provider,
+)
 from skala_agent.workflow.graph import build_graph, initial_state
 
 
@@ -14,10 +19,16 @@ def main():
         help="demo: API 키 없이 실행하는 기본값. real: 실제 provider 연결",
     )
     parser.add_argument("--output", type=Path, default=Path("outputs/report.md"))
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="외부 서비스 호출 1건의 상한(초). 0이면 상한 없음",
+    )
     args = parser.parse_args()
 
     try:
-        provider = load_provider(args.mode)
+        provider = load_provider(args.mode, timeout=args.timeout)
     except ProviderUnavailableError as exc:
         raise SystemExit(f"실행 중단: {exc}") from exc
 
