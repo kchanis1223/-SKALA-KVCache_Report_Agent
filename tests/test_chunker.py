@@ -104,3 +104,35 @@ def test_chunk_pages_uses_section_resolver():
 def test_config_rejects_overlap_not_smaller_than_size():
     with pytest.raises(ValueError):
         ChunkingConfig(chunk_size_tokens=100, overlap_tokens=100)
+
+
+def test_reference_chunk_overrides_inherited_section():
+    """북마크가 없는 논문은 참고문헌이 직전 본문 섹션을 물려받습니다."""
+    refs = "References " + " ".join(
+        f"[{i}] Author, A. Title of the work. Venue {2000 + i}." for i in range(1, 12)
+    )
+    chunks = chunk_pages(
+        [(24, refs)],
+        paper_id="tq",
+        camp="sw",
+        role="primary",
+        source_url="https://example.com/tq",
+        tokenizer=TOKENIZER,
+        config=ChunkingConfig(version="t", tokenizer="test-word", chunk_size_tokens=500),
+        section_of=lambda _page: "Near Neighbour Search Experiments",
+    )
+    assert chunks[0].section == "References"
+
+
+def test_body_chunk_keeps_bookmark_section():
+    chunks = chunk_pages(
+        [(4, "본문입니다 [1] 인용 하나만 있습니다.")],
+        paper_id="tq",
+        camp="sw",
+        role="primary",
+        source_url="https://example.com/tq",
+        tokenizer=TOKENIZER,
+        config=SMALL,
+        section_of=lambda _page: "Related Work",
+    )
+    assert chunks[0].section == "Related Work"

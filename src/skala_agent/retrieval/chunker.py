@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 from skala_agent.retrieval.config import DEFAULT_CHUNKING, ChunkingConfig, chunk_id
+from skala_agent.retrieval.sections import REFERENCES_SECTION, looks_like_references
 from skala_agent.schemas import Chunk
 
 UNKNOWN_SECTION = "unknown"
@@ -73,6 +74,8 @@ def chunk_pages(
     for page, text in pages:
         section = resolve_section(page) or UNKNOWN_SECTION
         for sequence, piece in enumerate(split_page_text(text, tokenizer, config), 1):
+            # 북마크가 없는 논문은 참고문헌이 직전 본문 섹션을 물려받으므로 내용으로 덮어씁니다.
+            piece_section = REFERENCES_SECTION if looks_like_references(piece) else section
             chunks.append(
                 Chunk(
                     id=chunk_id(paper_id, page, sequence),
@@ -80,7 +83,7 @@ def chunk_pages(
                     paper_id=paper_id,
                     camp=camp,
                     role=role,
-                    section=section,
+                    section=piece_section,
                     page=page,
                     source_url=source_url,
                 )

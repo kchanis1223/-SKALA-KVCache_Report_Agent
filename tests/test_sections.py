@@ -42,3 +42,34 @@ def test_empty_outline_gives_default_for_every_page():
 def test_negative_page_count_rejected():
     with pytest.raises(ValueError):
         sections_by_page([], -1)
+
+
+REF_TEXT = "References " + " ".join(
+    f"[{i}] Author, A. and Author, B. Some paper title. Conference {2000 + i}."
+    for i in range(1, 12)
+)
+BODY_TEXT = (
+    "1.2 Related Work The vector quantization theory started by Shannon [48, 49] on "
+    "achievable distortion-rate functions. "
+    + "본문이 이어집니다. " * 60
+    + "Gersho [25] advanced it in 1979."
+)
+
+
+def test_reference_list_is_detected():
+    from skala_agent.retrieval.sections import looks_like_references
+
+    assert looks_like_references(REF_TEXT)
+
+
+def test_related_work_with_many_citations_is_not_references():
+    from skala_agent.retrieval.sections import looks_like_references
+
+    assert not looks_like_references(BODY_TEXT)
+
+
+def test_short_or_empty_text_is_not_references():
+    from skala_agent.retrieval.sections import looks_like_references
+
+    assert not looks_like_references("")
+    assert not looks_like_references("[1] 한 건뿐입니다. 2020.")

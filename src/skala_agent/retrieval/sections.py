@@ -6,9 +6,37 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 UNKNOWN_SECTION = "unknown"
+REFERENCES_SECTION = "References"
+
+# 참고문헌 판정 기준. 실제 논문 3건(69청크)으로 맞춘 값입니다.
+# 인용 밀도만 보면 Related Work와 구분되지 않아 연도 표기 수를 함께 봅니다.
+#   참고문헌 목록: 글자/마커 183~269, 연도 8~30
+#   Related Work: 글자/마커 290, 연도 1
+_CITATION = re.compile(r"\[\d+(?:,\s*\d+)*\]")
+_YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
+MIN_CITATIONS = 4
+MAX_CHARS_PER_CITATION = 320
+MIN_YEARS = 8
+
+
+def looks_like_references(text: str) -> bool:
+    """참고문헌 목록으로 보이면 True.
+
+    북마크가 없는 논문은 참고문헌 페이지가 직전 본문 섹션 이름을 물려받습니다
+    (turboquant p21~25). 본문 근거로 쓸 수 없는 청크이므로 따로 표시합니다.
+    """
+    if not text:
+        return False
+    citations = len(_CITATION.findall(text))
+    if citations < MIN_CITATIONS:
+        return False
+    if len(text) // citations > MAX_CHARS_PER_CITATION:
+        return False
+    return len(_YEAR.findall(text)) >= MIN_YEARS
 
 
 def sections_by_page(
