@@ -47,6 +47,29 @@ def research_with_retry(state, provider):
     ) from last
 
 
+class AdditionalSearchFailedError(RuntimeError):
+    """추가 검색 단계에서 외부 서비스 호출이 실패한 경우."""
+
+
+def additional_search_with_context(state, provider):
+    """실패 시 원인·대상·진행 상황을 붙여서 중단합니다.
+
+    네 관점 평가가 끝난 뒤의 근거 보완 단계이므로, 무엇이 실패했고 무엇이
+    완료된 상태인지 구분할 수 있어야 원인을 찾을 수 있습니다.
+    """
+    try:
+        return additional_search.run(state, provider)
+    except (TimeoutError, ConnectionError) as exc:
+        targets = sorted({m.perspective for m in state["missing_evidence"] if m.retryable})
+        raise AdditionalSearchFailedError(
+            f"추가 검색(재검색 {state['retry_count'] + 1}회차)이 실패했습니다: "
+            f"{type(exc).__name__} — {exc}. "
+            f"대상 관점: {', '.join(targets) or '없음'}. "
+            "네 관점 평가는 완료된 상태이고 근거 보완만 실패했습니다. "
+            "네트워크와 검색 API 설정을 확인한 뒤 다시 실행하세요."
+        ) from exc
+
+
 def initial_state() -> EvaluationState:
     return {
         "selected_technologies": [
@@ -111,7 +134,9 @@ def build_graph(provider: Provider | None = None):
     graph.add_node("evaluate", evaluate)
     graph.add_node("synthesize", synthesis.run)
     graph.add_node("validate", validation.run)
-    graph.add_node("additional_search", lambda state: additional_search.run(state, provider))
+    graph.add_node(
+        "additional_search", lambda state: additional_search_with_context(state, provider)
+    )
     graph.add_node("report", report.run)
     graph.add_edge(START, "research")
     graph.add_conditional_edges("research", dispatch, ["evaluate"])
