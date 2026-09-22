@@ -51,6 +51,10 @@ class ModelOutputError(ValueError):
     """JSON/schema/출처 참조 오류. 원문 응답을 오류 메시지에 노출하지 않습니다."""
 
 
+class IncompleteModelOutputError(ModelOutputError):
+    """생성 한도 초과 등 미완료 응답. 질문을 나누어 다시 추출할 수 있습니다."""
+
+
 class ServiceConfigurationError(ValueError):
     """인증 또는 모델 설치 등 재시도로 해결되지 않는 설정 오류."""
 
