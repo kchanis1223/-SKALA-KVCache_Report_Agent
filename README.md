@@ -116,9 +116,9 @@ ITME
 | Stakeholder       | Qwen3-4B / Ollama | 주체별 입장 구조화                     |
 | Domain            | Qwen3-4B / Ollama | 정해진 비용·SLA·운영 기준 평가            |
 | Additional Search | Qwen3-4B / Ollama | 검색 질의 생성 및 결과 전달               |
-| **Synthesis**     | **GPT-5.6 Sol**   | 관점 간 상충·trade-off를 종합하는 고난도 추론 |
-| Validation        | GPT-5.6 Terra     | 주장과 Evidence 대응 관계 검증          |
-| Report            | GPT-5.6 Terra     | 검증된 결과의 장문 보고서 구조화             |
+| **Synthesis**     | **GPT-5.4mini**   | 관점 간 상충·trade-off를 종합하는 고난도 추론 |
+| Validation        | GPT-5.4mini       | 주장과 Evidence 대응 관계 검증          |
+| Report            | GPT-5.4mini       | 검증된 결과의 장문 보고서 구조화             |
 
 > 반복 호출이 많은 조사·평가 단계는 로컬 모델로 비용과 외부 의존성을 줄이고, 복합 추론이 필요한 단계에만 상위 모델을 집중 배치했습니다.
 

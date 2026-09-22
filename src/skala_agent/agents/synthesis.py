@@ -82,7 +82,10 @@ def _generated_findings(state, model):
         {
             "role": "developer",
             "content": (
-                "상충 또는 trade-off만 findings로 반환하세요. 제공한 assessment_refs와 "
+                "상충 또는 trade-off만 findings로 반환하세요. "
+                "assessment_refs는 [perspective, technology_id] 튜플 리스트 형태"
+                "(예: [[\"trl\", \"turboquant\"]])여야 합니다. "
+                "제공한 assessments의 (perspective, technology_id) 조합과 "
                 "supports_claim=true Evidence ID만 사용하고, 근거 없는 항목은 생략하세요."
             ),
         },

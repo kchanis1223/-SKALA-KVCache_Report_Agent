@@ -38,9 +38,7 @@ confidence는 해당 Assessment가 직접 참조한 고유 URL 수로 제한합�
 from skala_agent.evaluation_contracts import validate_evaluation_output
 
 # provider의 assess() 마지막에 사용합니다.
-return validate_evaluation_output(
-    perspective, technologies, assessments, collected_evidence
-)
+return validate_evaluation_output(perspective, technologies, assessments, collected_evidence)
 ```
 
 네 관점의 EvaluationProvider에는 이미 연결했습니다. 다른 provider에서 기존 State의 Evidence를 직접 참조한다면 그 참조 대상도 검증에 제공해야 합니다. 구조 위반은 Pydantic ValidationError로 보고하며, 네트워크 실패처럼 숨기거나 재검색하지 않습니다.

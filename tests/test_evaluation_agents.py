@@ -41,10 +41,11 @@ class ModelFixture:
     def invoke(self, messages):
         self.calls.append(messages)
         payload = json.loads(messages[1]["content"])
-        if "claim" in payload:
+        if isinstance(payload, list) or (isinstance(payload, dict) and "claim" in payload):
             return json.dumps({"supports_claim": False})
         findings = []
-        for q in payload["questions"]:
+        questions = payload.get("questions", []) if isinstance(payload, dict) else []
+        for q in questions:
             answer = (
                 self.answers.get(q["id"], "unknown")
                 if self.answers is not None

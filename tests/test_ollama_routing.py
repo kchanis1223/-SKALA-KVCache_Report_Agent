@@ -20,8 +20,8 @@ def test_all_nine_agents_follow_the_design_assignment():
         settings.model_for(agent) == "qwen3:4b"
         for agent in ("research", "additional_search", "trl", "market", "stakeholder", "domain")
     )
-    assert settings.model_for("synthesis") == "gpt-5.6-sol"
-    assert settings.model_for("validation") == settings.model_for("report") == "gpt-5.6-terra"
+    assert settings.model_for("synthesis") == "gpt-5.4mini"
+    assert settings.model_for("validation") == settings.model_for("report") == "gpt-5.4mini"
     with pytest.raises(ValueError):
         settings.model_for("typo")
 
