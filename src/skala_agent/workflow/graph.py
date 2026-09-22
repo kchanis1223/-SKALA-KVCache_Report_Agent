@@ -115,8 +115,8 @@ def initial_state() -> EvaluationState:
     }
 
 
-def _logged_synthesize(state):
-    result = synthesis.run(state)
+def _logged_synthesize(state, provider):
+    result = synthesis.run(state, provider)
     logger.info("종합 완료 (판정 %d건)", len(result["synthesis"]))
     return result
 
@@ -132,8 +132,8 @@ def _logged_validate(state, provider):
     return result
 
 
-def _logged_report(state):
-    result = report.run(state)
+def _logged_report(state, provider):
+    result = report.run(state, provider)
     logger.info("보고서 생성 완료 (%d자, 재검색 %d회)", len(result["report"]), state["retry_count"])
     return result
 
@@ -200,12 +200,12 @@ def build_graph(provider: Provider | None = None):
         return [Send("evaluate", {"perspective": key, "state": state}) for key in targets]
 
     graph.add_node("evaluate", evaluate)
-    graph.add_node("synthesize", _logged_synthesize)
+    graph.add_node("synthesize", lambda state: _logged_synthesize(state, provider))
     graph.add_node("validate", lambda state: _logged_validate(state, provider))
     graph.add_node(
         "additional_search", lambda state: additional_search_with_context(state, provider)
     )
-    graph.add_node("report", _logged_report)
+    graph.add_node("report", lambda state: _logged_report(state, provider))
     graph.add_edge(START, "research")
     graph.add_conditional_edges("research", dispatch, ["evaluate"])
     graph.add_edge("evaluate", "synthesize")

@@ -115,7 +115,11 @@ def test_real_factory_autoloads_index_and_respects_explicit_override(monkeypatch
     monkeypatch.setattr(
         adapters,
         "read_environment",
-        lambda _: {"TAVILY_API_KEY": "fixture", "RAG_INDEX_DIR": "chosen"},
+        lambda _: {
+            "TAVILY_API_KEY": "fixture",
+            "OPENAI_API_KEY": "fixture",
+            "RAG_INDEX_DIR": "chosen",
+        },
     )
     calls = []
 

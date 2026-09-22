@@ -20,8 +20,7 @@ def build_provider(env_file=".env", *, retriever=_AUTO_RETRIEVER):
         )
     except ValueError as exc:
         raise ProviderUnavailableError(
-            ".env/.env.local의 Ollama 모델 설정 및 TAVILY_API_KEY를 확인하세요. "
-            "모델은 qwen3:4b/8b를 지원합니다."
+            ".env/.env.local의 Ollama 모델 설정, OPENAI_API_KEY, TAVILY_API_KEY를 확인하세요."
         ) from exc
     if retriever is _AUTO_RETRIEVER:
         retriever = try_load_retriever(env.get("RAG_INDEX_DIR", str(DEFAULT_INDEX_DIR)))

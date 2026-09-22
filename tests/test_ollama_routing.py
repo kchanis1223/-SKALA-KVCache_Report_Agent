@@ -13,15 +13,15 @@ from skala_agent.schemas import Technology
 from skala_agent.workflow.graph import build_graph, initial_state
 
 
-def test_all_nine_agents_follow_two_tier_assignment():
+def test_all_nine_agents_follow_the_design_assignment():
     settings = ModelSettings()
     assert len(settings.assignment()) == 9
-    assert settings.model_for("research") == settings.model_for("additional_search") == "qwen3:4b"
     assert all(
-        settings.model_for(a) == "qwen3:8b"
-        for a in AGENTS
-        if a not in ("research", "additional_search")
+        settings.model_for(agent) == "qwen3:4b"
+        for agent in ("research", "additional_search", "trl", "market", "stakeholder", "domain")
     )
+    assert settings.model_for("synthesis") == "gpt-5.6-sol"
+    assert settings.model_for("validation") == settings.model_for("report") == "gpt-5.6-terra"
     with pytest.raises(ValueError):
         settings.model_for("typo")
 
@@ -75,7 +75,7 @@ def test_incomplete_ollama_outputs_are_rejected(response):
         model.invoke([])
 
 
-@pytest.mark.parametrize("single, expected", [(False, "qwen3:8b"), (True, "qwen3:4b")])
+@pytest.mark.parametrize("single, expected", [(False, "qwen3:4b"), (True, "qwen3:4b")])
 def test_actual_evaluation_requests_use_selected_model(single, expected):
     calls = []
 
@@ -112,7 +112,8 @@ def test_actual_evaluation_requests_use_selected_model(single, expected):
             ]
 
     router = ModelRouter(
-        ModelSettings(use_single_model=single), transport=httpx.MockTransport(handler)
+        ModelSettings(use_single_model=single, openai_api_key="test"),
+        transport=httpx.MockTransport(handler),
     )
     provider = EvaluationProvider(models=router, search=Search())
     tech = [Technology(id="itme", name="ITME", camp="hw")]

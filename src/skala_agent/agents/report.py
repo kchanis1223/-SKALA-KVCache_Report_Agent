@@ -1,4 +1,25 @@
+import re
+
+from pydantic import BaseModel, ValidationError
+
 from skala_agent.agents.validation import valid_sources
+from skala_agent.integrations.contracts import ModelOutputError
+
+
+class ReportDraft(BaseModel):
+    report: str
+
+
+HEADINGS = (
+    "## SUMMARY",
+    "## 1. 분석 배경",
+    "## 2. 비교 기술 선정",
+    "## 3. 기술 개요",
+    "## 4. 관점별 평가",
+    "## 5. 종합 비교 및 시사점",
+    "## 6. 한계점",
+    "## REFERENCE",
+)
 
 
 def _sources(technology_id, evidence_ids, evidence):
@@ -25,7 +46,39 @@ def _value(item, key, default=None):
     return item.get(key, default) if isinstance(item, dict) else getattr(item, key, default)
 
 
-def run(state):
+def _refine(base, model):
+    messages = [
+        {
+            "role": "developer",
+            "content": (
+                "검증된 Markdown 보고서를 간결하고 자연스럽게 다듬으세요. 새로운 기술 주장, URL, "
+                "인용 번호, 제목 또는 섹션을 추가·삭제·변경하지 마세요. JSON만 반환하세요."
+            ),
+        },
+        {"role": "user", "content": base},
+    ]
+    try:
+        report = ReportDraft.model_validate_json(
+            model.invoke_structured(messages, ReportDraft.model_json_schema())
+        ).report
+    except (ValidationError, TypeError, ValueError) as exc:
+        raise ModelOutputError("보고서 모델의 구조화 출력이 유효하지 않습니다.") from exc
+    try:
+        headings_changed = [report.index(heading) for heading in HEADINGS] != sorted(
+            report.index(heading) for heading in HEADINGS
+        )
+    except ValueError:
+        headings_changed = True
+    if (
+        headings_changed
+        or re.findall(r"https?://[^\s)]+", report) != re.findall(r"https?://[^\s)]+", base)
+        or re.findall(r"\[\d+\]", report) != re.findall(r"\[\d+\]", base)
+    ):
+        raise ModelOutputError("보고서 모델이 검증된 목차·인용·참고문헌을 변경했습니다.")
+    return report
+
+
+def run(state, provider=None):
     lines = [
         "# KV cache 기술 비교 보고서 — 개발용 뼈대",
         "",
@@ -177,4 +230,6 @@ def run(state):
             lines.extend(f"  > {line}" for line in item.excerpt.splitlines())
     if not used:
         lines.append("검증된 인용 출처 없음.")
-    return {"report": "\n".join(lines) + "\n"}
+    report = "\n".join(lines) + "\n"
+    model = getattr(provider, "report_model", None)
+    return {"report": _refine(report, model) if model is not None else report}

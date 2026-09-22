@@ -27,6 +27,16 @@ class EvaluationProvider(DemoProvider):
             raise ValueError("search와 model 또는 models 중 하나를 지정하세요.")
         self.models = models
         self.validation_model = models.for_agent("validation") if models is not None else model
+        self.synthesis_model = (
+            models.for_agent("synthesis")
+            if models is not None and not models.settings.use_single_model
+            else None
+        )
+        self.report_model = (
+            models.for_agent("report")
+            if models is not None and not models.settings.use_single_model
+            else None
+        )
         self.evaluators = {
             perspective: WebEvaluator(
                 StructuredExtractor(models.for_agent(perspective) if models is not None else model),
