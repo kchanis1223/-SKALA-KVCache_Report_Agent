@@ -1,0 +1,9 @@
+{
+  "status": "unverified_design_candidates",
+  "embedding_model": "BAAI/bge-m3",
+  "documents": [
+    {"paper_id": "turboquant", "camp": "sw", "role": "primary", "url": "https://arxiv.org/abs/2504.19874"},
+    {"paper_id": "turboquant_analysis", "camp": "sw", "role": "reference", "url": "https://arxiv.org/abs/2605.08114"},
+    {"paper_id": "itme", "camp": "hw", "role": "primary", "url": "https://arxiv.org/abs/2606.12556"}
+  ]
+}

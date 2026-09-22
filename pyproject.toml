@@ -1,0 +1,26 @@
+[project]
+name = "skala-agent"
+version = "0.1.0"
+description = "KV cache 기술 비교를 위한 Agentic RAG 협업 뼈대"
+requires-python = ">=3.11,<3.15"
+dependencies = ["langgraph>=1.0,<2", "pydantic>=2.10,<3"]
+
+[project.scripts]
+skala-agent = "skala_agent.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
