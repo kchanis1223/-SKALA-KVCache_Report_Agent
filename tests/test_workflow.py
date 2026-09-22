@@ -191,3 +191,113 @@ def test_malformed_provider_output_is_not_silently_converted_to_failure():
 
     with pytest.raises(ValueError, match="정확히 하나"):
         build_graph(InvalidProvider()).invoke(initial_state())
+
+
+class VerifyingTradeoffProvider(FixtureProvider):
+    """종합 키워드 규칙에 걸리는 판정을 내고, 검증 단계에서 근거를 승인합니다.
+
+    FixtureProvider는 근거를 supports_claim=True로 만들어 반환하지만, 실제
+    provider는 검증 단계에서만 True가 됩니다. 그 순서를 재현하려고 평가 시점에는
+    False로 두고 validate_evidence에서 승인합니다.
+    """
+
+    def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+        assessments, sources = super().assess(
+            perspective, technologies, domain, tech_analysis, evidence
+        )
+        assessments = [
+            item.model_copy(
+                update={
+                    "verdict": "조건부 개선",
+                    "rationale": "긴 context length 조건에서 GPU 메모리 절감이 보고됐다.",
+                }
+            )
+            for item in assessments
+        ]
+        return assessments, [e.model_copy(update={"supports_claim": False}) for e in sources]
+
+    def validate_evidence(self, evidence):
+        return [e.model_copy(update={"supports_claim": True}) for e in evidence]
+
+
+def test_final_synthesis_reflects_evidence_verified_in_the_same_run():
+    """첫 검증에서 False→True가 된 근거가 같은 실행의 최종 종합에 반영된다.
+
+    synthesize가 validate보다 먼저 실행되므로 첫 종합은 supports_claim=False
+    상태에서 계산됩니다. 최종 검증 이후 종합을 다시 하지 않으면 승인된 근거가
+    보고서 5장에 반영되지 않았습니다.
+    """
+    result = build_graph(VerifyingTradeoffProvider()).invoke(initial_state())
+
+    assert all(e.supports_claim for e in result["evidence"])
+    assert result["synthesis_findings"], "검증된 근거가 최종 findings에 반영되어야 합니다"
+    verified = {e.id for e in result["evidence"] if e.supports_claim}
+    for finding in result["synthesis_findings"]:
+        assert set(finding.evidence_ids) <= verified
+    assert "검증된 trade-off 없음" not in result["report"]
+
+
+def test_final_synthesis_drops_evidence_withdrawn_by_verification():
+    """True→False로 철회된 근거는 최종 findings에서 빠진다."""
+
+    class WithdrawingProvider(VerifyingTradeoffProvider):
+        def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+            assessments, sources = super().assess(
+                perspective, technologies, domain, tech_analysis, evidence
+            )
+            return assessments, [e.model_copy(update={"supports_claim": True}) for e in sources]
+
+        def validate_evidence(self, evidence):
+            return [e.model_copy(update={"supports_claim": False}) for e in evidence]
+
+        def search_missing(self, missing):
+            # 근거가 전부 철회되면 네 관점이 모두 부족해집니다.
+            self.searches += 1
+            return []
+
+    result = build_graph(WithdrawingProvider()).invoke(initial_state())
+
+    assert not any(e.supports_claim for e in result["evidence"])
+    assert result["synthesis_findings"] == []
+    assert "검증된 trade-off 없음" in result["report"]
+
+
+def test_final_synthesis_runs_once_on_every_termination_path(caplog):
+    """재검색 없이 종료·2회 소진·재시도 불가 경로 모두 최종 종합을 한 번 지난다."""
+    import logging
+
+    from skala_agent.schemas import AgentError
+
+    class NonRetryable(FixtureProvider):
+        def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+            results, sources = super().assess(
+                perspective, technologies, domain, tech_analysis, evidence
+            )
+            if perspective != "domain":
+                return results, sources
+            return [
+                Assessment(
+                    technology_id=item.technology_id,
+                    perspective=perspective,
+                    verdict="판단 보류",
+                    rationale="영구 실패",
+                    status="failed",
+                    error=AgentError(code="ValueError", message="영구 실패", retryable=False),
+                )
+                for item in results
+            ], sources
+
+    cases = {
+        "재검색 없이 종료": (VerifyingTradeoffProvider(), None),
+        "재검색 2회 소진": (DemoProvider(), 2),
+        "재시도 불가": (NonRetryable(), None),
+    }
+    for label, (provider, expected_retries) in cases.items():
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="skala_agent.workflow.graph"):
+            result = build_graph(provider).invoke(initial_state())
+        messages = [r.getMessage() for r in caplog.records]
+        assert sum("최종 종합 재계산" in m for m in messages) == 1, f"{label}: {messages}"
+        assert result["report"], label
+        if expected_retries is not None:
+            assert result["retry_count"] == expected_retries, label
