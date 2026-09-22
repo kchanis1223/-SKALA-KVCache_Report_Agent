@@ -138,6 +138,28 @@ def _logged_report(state, provider):
     return result
 
 
+def finalize_synthesis(state, provider):
+    """최종 근거 검증 결과를 반영해 종합 findings를 다시 계산합니다.
+
+    synthesize가 validate보다 먼저 실행되므로, 종합 시점에는 Evidence의
+    supports_claim이 아직 갱신되지 않았습니다(기본값 False). synthesis는
+    supports_claim=True인 근거만 쓰기 때문에 첫 바퀴 종합은 근거 0건으로
+    계산되고, 마지막 validate 이후에는 종합을 다시 하지 않아 승인된 근거가
+    최종 보고서 5장에 반영되지 않았습니다.
+
+    보고서로 나가기 직전에 한 번 더 계산해 이 누락을 없앱니다. 철회된 근거
+    (True→False)와 재검색으로 추가된 근거도 같은 경로로 반영됩니다.
+
+    판정(synthesis)은 다시 만들지 않고 validate가 남긴 값을 그대로 둡니다.
+    synthesis.run은 analyses에서 판정을 새로 만들기 때문에, 반환값을 그대로
+    쓰면 validate가 낮춘 confidence 같은 정규화가 사라집니다.
+    """
+    result = synthesis.run(state, provider)
+    findings = result["synthesis_findings"]
+    logger.info("최종 종합 재계산 (findings %d건)", len(findings))
+    return {"synthesis_findings": findings}
+
+
 def build_graph(provider: Provider | None = None):
     provider = provider or DemoProvider()
     graph = StateGraph(EvaluationState)
@@ -243,16 +265,20 @@ def build_graph(provider: Provider | None = None):
     graph.add_conditional_edges("research", dispatch, ["evaluate"])
     graph.add_edge("evaluate", "synthesize")
     graph.add_edge("synthesize", "validate")
+    graph.add_node("finalize_synthesis", lambda state: finalize_synthesis(state, provider))
+    # 종료 경로는 모두 finalize_synthesis를 지납니다. 재검색 없이 끝나는 경우,
+    # 재검색 2회를 소진한 경우, 재시도 불가로 끝나는 경우가 모두 해당합니다.
     graph.add_conditional_edges(
         "validate",
         lambda state: (
             "additional_search"
             if any(m.retryable for m in state["missing_evidence"])
             and state["retry_count"] < MAX_RETRIES
-            else "report"
+            else "finalize_synthesis"
         ),
-        ["additional_search", "report"],
+        ["additional_search", "finalize_synthesis"],
     )
+    graph.add_edge("finalize_synthesis", "report")
     graph.add_conditional_edges("additional_search", dispatch, ["evaluate"])
     graph.add_edge("report", END)
     return graph.compile()

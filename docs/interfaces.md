@@ -28,7 +28,7 @@
 | tech_analysis | dict[str, TechAnalysis] | research | 기술별 조사 결과 |
 | analyses | dict[str, list[Assessment]] | evaluate | 관점별 분리 쓰기, 같은 관점의 재실행은 교체 |
 | evidence | list[Evidence] | research / evaluate / additional_search; 향후 의미 검증자 | ID 기준 upsert |
-| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화 |
+| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화. 최종 종합 재계산은 이 값을 덮지 않음 |
 | synthesis_findings | list[SynthesisFinding] | synthesize | 설계서 4-7의 다섯 질문으로 탐지한 근거 연결 상충·trade-off |
 | missing_evidence | list[MissingEvidence] | validate | 검증 회차마다 전체 교체 |
 | retry_count | int | additional_search | 실제 추가 검색 회차마다 +1, 최대 2 |
@@ -45,7 +45,10 @@
 | 종합 | analyses, evidence | `synthesis`와 `synthesis_findings`. 외부 검색 없음 |
 | 검증 | synthesis, evidence | provider의 `validate_evidence(evidence) -> list[Evidence]`로 지지 여부를 갱신한 뒤 정규화한 synthesis와 missing_evidence 반환 |
 | 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신 |
-| 보고서 | synthesis, evidence, missing_evidence, 입력 기술·도메인, retry_count | report. 외부 검색 없음 |
+| 최종 종합 재계산 | analyses, 검증된 evidence | `synthesis_findings`만 반환. 판정(synthesis)은 검증이 정규화한 값을 유지 |
+| 보고서 | synthesis, synthesis_findings, evidence, missing_evidence, 입력 기술·도메인, retry_count | report. 외부 검색 없음 |
+
+종합은 `supports_claim=True`인 근거만 사용하는데 검증이 그 뒤에 실행되므로, 첫 종합은 항상 미검증 상태(기본값 `False`)에서 계산됩니다. 그래서 보고서로 나가기 직전에 종합을 한 번 더 계산합니다. 재검색 없이 종료하는 경로, 재검색 2회를 소진한 경로, 재시도 불가로 종료하는 경로가 모두 이 단계를 지납니다. `synthesis.run`은 analyses에서 판정을 새로 만들기 때문에, 이 단계는 `synthesis_findings`만 받아 쓰고 판정은 검증이 남긴 값을 유지합니다.
 
 각 `assess()` 호출은 선택된 기술마다 정확히 하나의 결과를 반환해야 합니다. 기술 ID와 관점이 다르거나 빠지면 계약 오류입니다. `research()`도 선택된 기술 전체를 키로 반환하며, 키와 `TechAnalysis.technology_id`가 일치해야 합니다. Provider 경계에서 Pydantic으로 dict를 검증할 수 있지만 반환 계약은 해당 모델 기준입니다.
 
