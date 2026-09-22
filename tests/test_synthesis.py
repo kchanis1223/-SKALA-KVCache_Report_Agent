@@ -1,3 +1,5 @@
+import json
+
 from skala_agent.agents.synthesis import run
 from skala_agent.schemas import (
     Assessment,
@@ -130,3 +132,46 @@ def test_synthesis_does_not_treat_a_question_prompt_as_a_tradeoff():
     result = run({"analyses": {"domain": [assessment]}, "evidence": [evidence]})
 
     assert result["synthesis_findings"] == []
+
+
+def test_synthesis_uses_the_configured_model_for_traceable_findings():
+    assessment = Assessment(
+        technology_id="turboquant",
+        perspective="domain",
+        verdict="조건부 개선",
+        rationale="fixture",
+        status="assessed",
+        evidence_ids=["evidence-1"],
+    )
+    evidence = Evidence(
+        id="evidence-1",
+        technology_id="turboquant",
+        claim="fixture",
+        url="https://example.org/source",
+        title="fixture",
+        excerpt="fixture",
+        source_type="paper",
+        supports_claim=True,
+    )
+
+    class Model:
+        def invoke_structured(self, messages, schema):
+            assert messages[0]["role"] == "developer" and schema["type"] == "object"
+            return json.dumps(
+                {
+                    "findings": [
+                        {
+                            "technology_id": "turboquant",
+                            "question": "condition_limited",
+                            "summary": "근거가 특정 조건에 한정된다.",
+                            "assessment_refs": [["domain", "turboquant"]],
+                            "evidence_ids": ["evidence-1"],
+                        }
+                    ]
+                }
+            )
+
+    provider = type("Provider", (), {"synthesis_model": Model()})()
+    result = run({"analyses": {"domain": [assessment]}, "evidence": [evidence]}, provider)
+
+    assert result["synthesis_findings"][0].summary == "근거가 특정 조건에 한정된다."

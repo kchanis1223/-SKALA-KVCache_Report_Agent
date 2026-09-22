@@ -1,4 +1,9 @@
+import json
+
+import pytest
+
 from skala_agent.agents.report import run
+from skala_agent.integrations.contracts import ModelOutputError
 from skala_agent.schemas import Assessment, Evidence, MissingEvidence, TechAnalysis, Technology
 
 
@@ -237,3 +242,43 @@ def test_partial_research_shows_only_verified_paper_observations():
     assert "검증된 논문 관측: Supported observation" in report
     assert "page: 2; chunk_id: paper-p2-1" in report
     assert "Unverified composite overview" not in report and "Unsupported claim" not in report
+
+
+def test_report_uses_the_configured_model_without_allowing_citation_changes():
+    assessment = Assessment(
+        technology_id="turboquant",
+        perspective="trl",
+        verdict="TRL 5",
+        rationale="fixture",
+        status="assessed",
+        evidence_ids=["valid"],
+    )
+
+    class Model:
+        def invoke_structured(self, messages, schema):
+            assert messages[0]["role"] == "developer" and schema["type"] == "object"
+            return json.dumps({"report": messages[1]["content"]})
+
+    provider = type("Provider", (), {"report_model": Model()})()
+    result = run(_state(assessment, [_evidence("valid", "https://example.org/valid")]), provider)
+
+    assert "https://example.org/valid" in result["report"]
+
+
+def test_report_rejects_a_model_that_changes_verified_citations():
+    assessment = Assessment(
+        technology_id="turboquant",
+        perspective="trl",
+        verdict="TRL 5",
+        rationale="fixture",
+        status="assessed",
+        evidence_ids=["valid"],
+    )
+
+    class Model:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"report": messages[1]["content"].replace("[1]", "[2]")})
+
+    provider = type("Provider", (), {"report_model": Model()})()
+    with pytest.raises(ModelOutputError, match="인용"):
+        run(_state(assessment, [_evidence("valid", "https://example.org/valid")]), provider)

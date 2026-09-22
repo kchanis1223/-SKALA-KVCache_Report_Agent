@@ -1,4 +1,4 @@
-"""전체 Agent 공통 Ollama 4B/8B 모델 배정. 객체 생성은 네트워크를 호출하지 않습니다."""
+"""설계서의 Agent별 Ollama·OpenAI 모델 배정. 객체 생성은 네트워크를 호출하지 않습니다."""
 
 import os
 from pathlib import Path
@@ -9,6 +9,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field
 
 from skala_agent.integrations.ollama import OllamaChat
+from skala_agent.integrations.openai import OpenAIResponses
 
 AGENTS = (
     "research",
@@ -21,7 +22,12 @@ AGENTS = (
     "synthesis",
     "report",
 )
-LIGHT_AGENTS = {"research", "additional_search"}
+OLLAMA_AGENTS = {"research", "additional_search", "trl", "market", "stakeholder", "domain"}
+OPENAI_MODELS = {
+    "synthesis": ("gpt-5.6-sol", "medium"),
+    "validation": ("gpt-5.6-terra", "low"),
+    "report": ("gpt-5.6-terra", "low"),
+}
 
 
 def read_environment(env_file: str | Path = ".env") -> dict[str, str]:
@@ -39,11 +45,13 @@ class ModelSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
     provider: Literal["ollama"] = "ollama"
     light_model: Literal["qwen3:4b"] = "qwen3:4b"
-    main_model: Literal["qwen3:4b", "qwen3:8b"] = "qwen3:8b"
+    main_model: Literal["qwen3:4b", "qwen3:8b"] = "qwen3:4b"
     use_single_model: bool = False
     single_model: Literal["qwen3:4b"] = "qwen3:4b"
     base_url: str = "http://localhost:11434"
     timeout: float = Field(default=120, gt=0)
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
 
     @classmethod
     def from_environment(cls, env):
@@ -55,6 +63,8 @@ class ModelSettings(BaseModel):
             "single_model": "SINGLE_MODEL",
             "base_url": "OLLAMA_BASE_URL",
             "timeout": "OLLAMA_TIMEOUT",
+            "openai_api_key": "OPENAI_API_KEY",
+            "openai_base_url": "OPENAI_BASE_URL",
         }
         return cls(**{key: env[name] for key, name in names.items() if name in env})
 
@@ -63,7 +73,9 @@ class ModelSettings(BaseModel):
             raise ValueError(f"알 수 없는 Agent: {agent}")
         if self.use_single_model:
             return self.single_model
-        return self.light_model if agent in LIGHT_AGENTS else self.main_model
+        if agent in OPENAI_MODELS:
+            return OPENAI_MODELS[agent][0]
+        return self.light_model if agent in OLLAMA_AGENTS else self.main_model
 
     def assignment(self) -> dict[str, str]:
         return {agent: self.model_for(agent) for agent in AGENTS}
@@ -83,7 +95,20 @@ class ModelRouter:
                 lock=lock,
             )
             for name in set(settings.assignment().values())
+            if name.startswith("qwen")
         }
+        for _agent, (name, effort) in OPENAI_MODELS.items():
+            if settings.use_single_model or name in self._models:
+                continue
+            self._models[name] = OpenAIResponses(
+                name,
+                api_key=settings.openai_api_key,
+                reasoning_effort=effort,
+                base_url=settings.openai_base_url,
+                timeout=settings.timeout,
+                transport=transport,
+                lock=lock,
+            )
 
     def for_agent(self, agent):
         return self._models[self.settings.model_for(agent)]

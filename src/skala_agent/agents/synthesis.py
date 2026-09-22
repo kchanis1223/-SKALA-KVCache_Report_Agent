@@ -1,4 +1,14 @@
+import json
+
+from pydantic import BaseModel, ValidationError
+
+from skala_agent.integrations.contracts import ModelOutputError
 from skala_agent.schemas import PERSPECTIVES, SynthesisFinding
+
+
+class SynthesisDraft(BaseModel):
+    findings: list[SynthesisFinding]
+
 
 QUESTION_KEYWORDS = {
     "quality_stability": (
@@ -60,7 +70,57 @@ def _maturity_adoption_finding(assessments, evidence):
     return findings
 
 
-def run(state):
+def _generated_findings(state, model):
+    evidence = [item for item in state["evidence"] if item.supports_claim]
+    payload = {
+        "assessments": [
+            item.model_dump(mode="json") for values in state["analyses"].values() for item in values
+        ],
+        "evidence": [item.model_dump(mode="json") for item in evidence],
+    }
+    messages = [
+        {
+            "role": "developer",
+            "content": (
+                "상충 또는 trade-off만 findings로 반환하세요. 제공한 assessment_refs와 "
+                "supports_claim=true Evidence ID만 사용하고, 근거 없는 항목은 생략하세요."
+            ),
+        },
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    try:
+        draft = SynthesisDraft.model_validate_json(
+            model.invoke_structured(messages, SynthesisDraft.model_json_schema())
+        )
+    except (ValidationError, TypeError, ValueError) as exc:
+        raise ModelOutputError("종합 모델의 구조화 출력이 유효하지 않습니다.") from exc
+    assessments = {
+        (item.perspective, item.technology_id): item
+        for values in state["analyses"].values()
+        for item in values
+    }
+    valid_evidence = {item.id: item for item in evidence}
+    for finding in draft.findings:
+        if not all(ref in assessments for ref in finding.assessment_refs) or not all(
+            item.technology_id == finding.technology_id
+            for ref in finding.assessment_refs
+            for item in [assessments[ref]]
+        ):
+            raise ModelOutputError(
+                "종합 모델이 존재하지 않거나 다른 기술의 assessment를 참조했습니다."
+            )
+        if not all(
+            evidence_id in valid_evidence
+            and valid_evidence[evidence_id].technology_id == finding.technology_id
+            for evidence_id in finding.evidence_ids
+        ):
+            raise ModelOutputError(
+                "종합 모델이 검증되지 않았거나 다른 기술의 Evidence를 참조했습니다."
+            )
+    return draft.findings
+
+
+def run(state, provider=None):
     assessments = [item for key in PERSPECTIVES for item in state["analyses"].get(key, [])]
     findings = _maturity_adoption_finding(assessments, state["evidence"])
     for assessment in assessments:
@@ -79,4 +139,15 @@ def run(state):
                         evidence_ids=evidence_ids,
                     )
                 )
+    model = getattr(provider, "synthesis_model", None)
+    if model is not None:
+        generated = _generated_findings(state, model)
+        generated_keys = {
+            (item.question, item.technology_id, tuple(item.evidence_ids)) for item in generated
+        }
+        findings = [
+            item
+            for item in findings
+            if (item.question, item.technology_id, tuple(item.evidence_ids)) not in generated_keys
+        ] + generated
     return {"synthesis": assessments, "synthesis_findings": findings}
