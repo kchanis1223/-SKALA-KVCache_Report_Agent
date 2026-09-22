@@ -167,25 +167,25 @@ section
 
 ```mermaid
 flowchart TD
-    S([START]) --> A[기술/도메인 입력]
-    A --> B[Research Agent · RAG]
+    S([시작]) --> A[기술 및 도메인 입력]
+    A --> B[기술 조사 Agent · RAG]
 
-    B --> C[TRL Agent]
-    B --> D[Market Agent]
-    B --> E[Stakeholder Agent]
-    B --> F[Domain Agent · RAG]
+    B --> C[TRL 평가 Agent]
+    B --> D[시장성 평가 Agent]
+    B --> E[이해관계자 평가 Agent]
+    B --> F[도메인 평가 Agent · RAG]
 
-    C --> G[Synthesis Agent]
+    C --> G[종합 Agent]
     D --> G
     E --> G
     F --> G
 
-    G --> H{Validation Agent}
+    G --> H{근거 검증 Agent}
 
-    H -->|충분| J[Report Agent]
-    J --> Z([END])
+    H -->|근거 충분| J[보고서 생성 Agent]
+    J --> Z([종료])
 
-    H -->|부족 · retry < 2| I[Additional Search Agent]
+    H -->|근거 부족 · retry < 2| I[추가 검색 Agent]
     I --> K{재평가 대상}
 
     K --> C
