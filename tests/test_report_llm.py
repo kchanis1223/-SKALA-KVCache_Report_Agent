@@ -59,7 +59,7 @@ def test_report_llm_refine_valid():
     def handler(messages):
         base_text = messages[1]["content"]
         # 원본 markdown 구조와 인용/목차를 그대로 보존하며 다듬은 문장 생성
-        refined = base_text.replace("자동 생성 템플릿입니다.", "검증된 최신 평가 보고서입니다.")
+        refined = base_text.replace("실제 평가 실행 결과입니다.", "검증된 최신 평가 보고서입니다.")
         return json.dumps({"report": refined})
 
     mock_model = DummyReportModel(handler)
