@@ -97,8 +97,9 @@ def additional_search_with_context(state, provider):
     return result
 
 
-def initial_state() -> EvaluationState:
+def initial_state(run_mode: str = "demo") -> EvaluationState:
     return {
+        "run_mode": run_mode,
         "selected_technologies": [
             Technology(id="turboquant", name="TurboQuant", camp="sw"),
             Technology(id="itme", name="ITME", camp="hw"),
