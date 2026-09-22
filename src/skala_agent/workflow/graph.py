@@ -151,7 +151,21 @@ def build_graph(provider: Provider | None = None):
         except (TimeoutError, ConnectionError) as exc:
             # Adapter는 외부 서비스 오류를 아래 표준 예외로 변환합니다.
             # 구조화 출력 오류나 프로그래밍 오류는 숨기지 않습니다.
-            error = AgentError(code=type(exc).__name__, message="외부 서비스 요청 실패")
+            #
+            # 두 예외를 모두 "외부 서비스 요청 실패"로 적었더니 보고서에 사실과
+            # 다른 사유가 남았습니다. TimeoutError는 외부 장애가 아니라 로컬 호출
+            # 상한(runtime.TimeoutProvider) 초과일 수 있고, 관점이 직렬화된 추론을
+            # 기다리다 상한에 걸린 경우가 실제로 그렇게 기록됐습니다.
+            #
+            # provider 예외 문구 자체는 보고서로 내보내지 않습니다. URL이나 내부
+            # 경로가 섞일 수 있어 tests/test_workflow.py가 유출을 금지합니다.
+            # 그래서 예외 종류별 고정 문구만 남기고 원문은 로그로 보냅니다.
+            error = AgentError(
+                code=type(exc).__name__,
+                message="호출 상한 시간 초과"
+                if isinstance(exc, TimeoutError)
+                else "외부 서비스 연결 실패",
+            )
             assessments = [
                 Assessment(
                     technology_id=t.id,
@@ -164,8 +178,14 @@ def build_graph(provider: Provider | None = None):
                 for t in state["selected_technologies"]
             ]
             evidence = []
+            # 원문은 보고서가 아니라 로그로만 보냅니다. status와 code만으로는
+            # 상한 초과인지 연결 실패인지 재현 때 다시 계측해야 했습니다.
             logger.warning(
-                "[%s] 평가 실패 (%.1fs): %s", key, time.monotonic() - started, error.code
+                "[%s] 평가 실패 (%.1fs): %s — %s",
+                key,
+                time.monotonic() - started,
+                error.code,
+                exc,
             )
         assessments = [Assessment.model_validate(a) for a in assessments]
         evidence = [Evidence.model_validate(e) for e in evidence]

@@ -70,3 +70,48 @@ def test_retry_passes_new_evidence_and_preserves_healthy_perspectives():
 
     assert result["retry_count"] == 1
     assert not result["missing_evidence"]
+
+
+def test_timeout_and_connection_failures_get_distinct_reasons():
+    """상한 초과와 연결 실패가 같은 문구로 뭉쳐지지 않는다.
+
+    TimeoutError는 외부 장애가 아니라 로컬 호출 상한(runtime.TimeoutProvider)
+    초과일 수 있습니다. 두 경우를 모두 "외부 서비스 요청 실패"로 적으면 보고서에
+    사실과 다른 사유가 남습니다. provider 예외 원문은 보고서로 내보내지 않으므로
+    (tests/test_workflow.py가 금지) 예외 종류별 고정 문구로 구분합니다.
+    """
+
+    def reason_for(exc):
+        class Failing(DemoProvider):
+            def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+                if perspective == "domain":
+                    raise exc
+                return super().assess(perspective, technologies, domain, tech_analysis, evidence)
+
+        state = build_graph(Failing()).invoke(initial_state())
+        failed = [a for a in state["analyses"]["domain"] if a.status == "failed"]
+        assert failed, "domain 관점이 실패로 기록되어야 합니다"
+        return {a.error.message for a in failed if a.error}
+
+    timed_out = reason_for(TimeoutError("provider.assess 호출이 1200.0초를 초과했습니다."))
+    disconnected = reason_for(ConnectionError("검색 서비스 응답에 results 목록이 없습니다."))
+
+    assert timed_out == {"호출 상한 시간 초과"}
+    assert disconnected == {"외부 서비스 연결 실패"}
+
+
+def test_failure_reason_does_not_leak_provider_exception_text():
+    """예외 원문이 판정에 섞이지 않는다. 내부 경로·URL이 보고서로 나갈 수 있다."""
+
+    class Leaky(DemoProvider):
+        def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+            if perspective == "domain":
+                raise TimeoutError("http://localhost:11434 내부 경로 노출 금지")
+            return super().assess(perspective, technologies, domain, tech_analysis, evidence)
+
+    state = build_graph(Leaky()).invoke(initial_state())
+
+    for assessment in state["analyses"]["domain"]:
+        assert "localhost" not in assessment.rationale
+        assert assessment.error is None or "localhost" not in assessment.error.message
+    assert "localhost" not in state["report"]
