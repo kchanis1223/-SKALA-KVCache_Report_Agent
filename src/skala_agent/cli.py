@@ -1,4 +1,5 @@
 import argparse
+import logging
 from pathlib import Path
 
 from skala_agent.runtime import (
@@ -25,7 +26,18 @@ def main():
         default=DEFAULT_TIMEOUT_SECONDS,
         help="외부 서비스 호출 1건의 상한(초). 0이면 상한 없음",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="단계별 진행 상황과 소요 시간을 출력",
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        format="%(asctime)s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     try:
         provider = load_provider(args.mode, timeout=args.timeout)

@@ -51,11 +51,20 @@ python app.py --mode real --timeout 600  # Ollama 연결
 skala-evaluate --perspective all      # TRL·시장성만 평가
 ```
 
+<<<<<<< feat/issue-5-qwen3-evaluation
 저사양 PC는 `.env`의 `USE_SINGLE_MODEL=true`만 바꾸고 4B만 다운로드합니다. `.env`와 `.env.local`을 자동 로딩하며 환경변수 > `.env.local` > `.env` 순서로 우선합니다. 기존 uv 사용자는 `uv sync --locked`, `uv run skala-evaluate --perspective all`로 실행할 수 있습니다.
 
 로컬 모델 추론에는 LLM API 키가 필요 없습니다. 실시간 웹검색은 기존 Tavily를 사용하므로 `.env.local`에 Tavily 키를 입력해야 합니다.
 
 전 Agent의 모델 정책을 제공하지만, 현재 실제 LLM 구현은 #5의 TRL·시장성입니다. 다른 Agent는 해당 담당자의 구현이 필요하며, 전체 그래프에서는 미구현·미검증 결과를 판단 보류로 유지합니다. 상세 설정과 제한은 [이슈 #5 실행 안내](docs/issue-5-evaluation.md)를 참고하세요.
+=======
+`--verbose`를 붙이면 단계별 진행 상황과 소요 시간을 출력합니다. 기본 실행은 경고
+이상만 남깁니다.
+
+```bash
+uv run skala-agent --verbose
+```
+>>>>>>> main
 
 ## 구성
 
