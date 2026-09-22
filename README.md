@@ -43,11 +43,22 @@ trade-off가 달라 동일한 평가 프레임에서 비교합니다.
 ## Tech Stack
 
 - Framework: LangGraph
-- LLM/Generator: gpt-5.6-terra — Report Generation Agent, reasoning effort `low`
-- LLM/Judge: gpt-5.6-terra — Validation Agent의 주장·원문 발췌 지지 여부 판정, reasoning effort `low`
-- LLM/Synthesis: gpt-5.6-sol — 관점 간 상충·trade-off·근거 참조 판단, reasoning effort `medium`
 - Retrieval: numpy VectorStore, Retriever — Hit@1, Hit@3, MRR
 - Embedding: BAAI/bge-m3 — 한국어 질의와 영어 기술 문서 검색을 고려한 다국어 임베딩
+
+발표·설계 기준의 Agent별 모델 배정은 다음과 같습니다. 아직 정하지 않은 Agent는 공란으로 둡니다.
+
+| Agent | 모델 배정 |
+| --- | --- |
+| Synthesis | `gpt-5.6-sol`, reasoning effort `medium` |
+| Validation | `gpt-5.6-terra`, reasoning effort `low` |
+| Report | `gpt-5.6-terra`, reasoning effort `low` |
+| Research | |
+| Additional Search | |
+| TRL | |
+| Market | |
+| Stakeholder | |
+| Domain | |
 
 ## Agents
 
