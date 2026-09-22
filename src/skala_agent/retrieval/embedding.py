@@ -6,13 +6,9 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from skala_agent.retrieval.interfaces import Embedder
 
-
-class Embedder(Protocol):
-    model_name: str
-
-    def encode(self, texts: list[str]) -> list[list[float]]: ...
+__all__ = ["Embedder", "BgeM3Embedder"]
 
 
 class BgeM3Embedder:

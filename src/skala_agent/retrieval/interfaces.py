@@ -15,7 +15,9 @@ class PDFParser(Protocol):
 class Embedder(Protocol):
     model_name: str  # 기본 선택: BAAI/bge-m3
 
-    def encode(self, texts: list[str]) -> list[list[float]]: ...
+    def encode(self, texts: list[str]) -> list[list[float]]:
+        """색인과 질의에 같은 인스턴스를 써야 벡터 공간이 일치합니다."""
+        ...
 
 
 class VectorStore(Protocol):
@@ -28,6 +30,7 @@ class VectorStore(Protocol):
         top_k: int = 3,
         role: Literal["primary", "reference"] | None = None,
         paper_id: str | None = None,
+        section: str | None = None,
     ) -> list[RetrievalResult]: ...
 
 
