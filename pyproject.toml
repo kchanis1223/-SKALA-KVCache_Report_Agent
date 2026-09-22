@@ -22,6 +22,7 @@ skala-agent = "skala_agent.cli:main"
 skala-evaluate = "skala_agent.evaluate_cli:main"
 skala-index = "skala_agent.retrieval.index_cli:main"
 skala-search = "skala_agent.retrieval.search_cli:main"
+skala-eval-retrieval = "skala_agent.evaluation.retrieval_cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]

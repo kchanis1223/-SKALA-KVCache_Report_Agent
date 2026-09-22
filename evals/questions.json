@@ -1,0 +1,652 @@
+[
+  {
+    "id": "E01",
+    "category": "고유명사",
+    "paper": "2606.12556v2",
+    "question": "ITME 구조는 어떻게 되어 있어?",
+    "expected_answer": "GPU·호스트 staging·원격 CXL-hybrid 계층을 RDMA/DMA로 연결하고 원격 장치 내부는 DRAM 캐시와 SSD로 구성한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E02",
+    "category": "고유명사",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant는 어떤 순서로 벡터를 압축해?",
+    "expected_answer": "무작위 회전과 좌표별 MSE 양자화를 적용하며 내적 편향 보정이 필요하면 잔차에 1비트 QJL을 적용한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E03",
+    "category": "고유명사",
+    "paper": "2504.19874v1",
+    "question": "Lloyd-Max는 TurboQuant에서 어디에 쓰여?",
+    "expected_answer": "회전된 좌표의 알려진 분포에 맞춰 1차원 스칼라 양자화 중심점과 코드북을 계산한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E04",
+    "category": "고유명사",
+    "paper": "2605.08114v1",
+    "question": "Shannon–φ 평면의 두 축은 뭘 뜻해?",
+    "expected_answer": "상대 MSE로 측정하는 스케일 오차와 코사인 거리로 측정하는 방향 오차이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E05",
+    "category": "고유명사",
+    "paper": "2605.08114v1",
+    "question": "Energy distance로 KV 양자화의 무엇을 비교해?",
+    "expected_answer": "K·V·출력의 스케일·방향 오차를 모은 6차원 벡터의 분포를 비교한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E06",
+    "category": "고유명사",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant 평가에 LongBench-E를 쓴 이유는?",
+    "expected_answer": "문맥 길이 분포가 더 균일한 부분집합으로 길이별 성능을 균형 있게 비교하려고 사용한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E07",
+    "category": "고유명사",
+    "paper": "2606.12556v2",
+    "question": "ITME Remote Manager가 하는 일은?",
+    "expected_answer": "원격 장치의 청크·가중치·prefix 캐시를 관리하고 내부 prefetch 엔진을 구동해 다음 요청 전에 데이터를 DRAM에 준비한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "E08",
+    "category": "고유명사",
+    "paper": "2605.08114v1",
+    "question": "통계 분석의 quorum 원칙은 뭐야?",
+    "expected_answer": "적어도 두 통계 도구의 결론이 일치해야 하며 좌표계에 따른 불일치도 분석한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A01",
+    "category": "약어",
+    "paper": "2606.12556v2",
+    "question": "ITME에서 CXL의 역할은?",
+    "expected_answer": "NAND 기반 용량을 캐시 일관성과 바이트 주소 접근을 지원하는 메모리로 CPU에 노출한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A02",
+    "category": "약어",
+    "paper": "2504.19874v1",
+    "question": "QJL은 무슨 약자이고 뭘 보정해?",
+    "expected_answer": "Quantized Johnson-Lindenstrauss로, 잔차의 1비트 스케치를 통해 내적 추정의 편향을 보정한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A03",
+    "category": "약어",
+    "paper": "2605.08114v1",
+    "question": "통계 분석에서 WHT를 먼저 적용하는 이유는?",
+    "expected_answer": "Hadamard 기반 회전으로 축에 집중된 좌표 패턴을 섞어 스칼라 양자화에 유리하게 하지만 저랭크 결합구조까지 제거하지는 못한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A04",
+    "category": "약어",
+    "paper": "2605.08114v1",
+    "question": "KL divergence로 attention 양자화의 뭘 측정해?",
+    "expected_answer": "원본과 양자화된 attention 확률분포 차이를 측정한다. softmax 분포 기준 KL은 K 경로의 오차를 반영한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A05",
+    "category": "약어",
+    "paper": "2504.19874v1",
+    "question": "벡터 양자화에서 MSE는 어떤 오차야?",
+    "expected_answer": "원래 벡터와 복원된 벡터 사이의 제곱 L2 거리의 기대값이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A06",
+    "category": "약어",
+    "paper": "2606.12556v2",
+    "question": "ITME 데이터 경로에서 RDMA는 어디를 연결해?",
+    "expected_answer": "GPU 서버의 호스트 staging 메모리와 원격 CXL-hybrid 메모리 사이를 연결한다. 호스트와 GPU 사이는 DMA로 이어진다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A07",
+    "category": "약어",
+    "paper": "2606.12556v2",
+    "question": "ITME의 MSHR은 prefetch에 왜 필요해?",
+    "expected_answer": "여러 미완료 SSD 읽기를 겹쳐 처리해 백엔드 지연을 숨긴다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "A08",
+    "category": "약어",
+    "paper": "2504.19874v1",
+    "question": "PQ는 벡터 검색에서 뭘 줄여 주는 기법이야?",
+    "expected_answer": "Product Quantization은 데이터베이스 벡터를 압축해 인덱스 메모리를 줄이고 근사 거리·내적 검색을 돕는다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C01",
+    "category": "개념",
+    "paper": "2504.19874v1",
+    "question": "문맥이 길어지면 KV cache가 메모리 병목이 되는 이유는?",
+    "expected_answer": "과거 토큰의 K/V를 이후 디코딩에도 보관하고 재사용하므로 문맥 길이에 따라 캐시 용량이 증가한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C02",
+    "category": "개념",
+    "paper": "2504.19874v1",
+    "question": "MSE를 최소화했는데도 내적에는 왜 편향이 생겨?",
+    "expected_answer": "복원 MSE 최소화와 내적 불편향성은 서로 다른 조건이며 TurboQuant의 1비트 MSE 복원 예에는 2/π의 곱셈 편향이 있다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C03",
+    "category": "개념",
+    "paper": "2605.08114v1",
+    "question": "좌표 히스토그램이 Beta처럼 보이면 저랭크 양자화도 잘 된 거야?",
+    "expected_answer": "아니다. 주변분포가 같아 보여도 회전은 부분공간의 결합구조를 보존하므로 내적과 attention에는 큰 오차가 남을 수 있다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C04",
+    "category": "개념",
+    "paper": "2605.08114v1",
+    "question": "내적 오차 평균이 0인데 softmax 결과는 왜 틀어져?",
+    "expected_answer": "지수함수의 볼록성에 따른 Jensen 팽창이 생기며 키별 오차 분산이 다르면 균일하게 상쇄되지 않는다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C05",
+    "category": "개념",
+    "paper": "2504.19874v1",
+    "question": "데이터를 미리 학습하지 않고 양자화한다는 건 무슨 뜻이야?",
+    "expected_answer": "입력 데이터별 코드북 학습이나 보정 없이 바로 적용하는 online/data-oblivious 양자화를 뜻한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C06",
+    "category": "개념",
+    "paper": "2606.12556v2",
+    "question": "ITME가 working KV까지 전부 원격으로 보내지 않는 이유는?",
+    "expected_answer": "디코딩에 쓰는 working KV는 지연에 민감하고 접근 예측성이 낮으므로 GPU나 호스트 메모리에 우선 배치한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C07",
+    "category": "개념",
+    "paper": "2606.12556v2",
+    "question": "ITME에서 SSD에 쓰기가 몰리면 읽기도 느려지는 이유는?",
+    "expected_answer": "백그라운드 쓰기가 SSD 내부 버퍼·NAND 자원을 점유해 읽기 큐와 prefetch를 막기 때문이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C08",
+    "category": "개념",
+    "paper": "2605.08114v1",
+    "question": "양자화로 attention의 1등 키가 바뀌면 왜 큰 문제가 돼?",
+    "expected_answer": "집중된 attention은 한 키에 큰 가중치를 두므로 argmax가 잘못 바뀌면 출력 전체가 다른 키의 값으로 이동할 수 있다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "C09",
+    "category": "개념",
+    "paper": "2606.12556v2",
+    "question": "ITME가 KV 블록을 큰 청크로 모으는 이유는?",
+    "expected_answer": "순차 전송으로 저장장치와 RDMA 대역폭을 활용하고 작은 명령·전송의 오버헤드를 줄이기 위해서다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N01",
+    "category": "수치",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant의 생성 실험에서는 몇 bit로 KV cache를 저장했어?",
+    "expected_answer": "LongBench 생성 실험에서는 2.5비트와 3.5비트 설정을 보고한다. 알고리즘의 전체 지원 비트 수 상한을 뜻하지는 않는다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N02",
+    "category": "수치",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant 원논문의 1·2·3·4비트 MSE 왜곡 값은?",
+    "expected_answer": "단위 벡터 기준으로 약 0.36, 0.117, 0.03, 0.009이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N03",
+    "category": "수치",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant의 MSE 보장은 이론적 하한의 몇 배 이내야?",
+    "expected_answer": "원논문이 제시한 상수는 sqrt(3)π/2로 약 2.7배이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N04",
+    "category": "수치",
+    "paper": "2605.08114v1",
+    "question": "통계 분석 논문에서 4비트일 때 가장 좋았던 방식은?",
+    "expected_answer": "논문은 KQV가 4비트에서 기하학적 K 오차·KL·6D 측정 전반에서 우세했다고 보고한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N05",
+    "category": "수치",
+    "paper": "2605.08114v1",
+    "question": "기하학적 K 복원에서 QKQV와 KQV의 우세가 바뀌는 비트 예산은?",
+    "expected_answer": "통계 분석 논문은 QKQV가 2·3·5비트, KQV가 4·6비트에서 우세하다고 보고한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N06",
+    "category": "수치",
+    "paper": "2605.08114v1",
+    "question": "heavy-tail에서 MSE+QJL이 역전하는 고차원 예외는 몇 차원이야?",
+    "expected_answer": "통계 분석 논문의 동일 예산 실험에서는 d=1024의 heavy-tail 조건이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N07",
+    "category": "수치",
+    "paper": "2606.12556v2",
+    "question": "ITME에서 16MB KV 블록 몇 개를 묶어서 512MB로 보내?",
+    "expected_answer": "32개 블록을 묶는다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N08",
+    "category": "수치",
+    "paper": "2606.12556v2",
+    "question": "ITME FPGA 프로토타입의 DRAM 캐시 용량은?",
+    "expected_answer": "32GB DDR4 DRAM을 사용한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "N09",
+    "category": "수치",
+    "paper": "2606.12556v2",
+    "question": "ITME의 prefetch 호출 오버헤드는 몇 마이크로초야?",
+    "expected_answer": "일반 경로는 약 3μs, mmap으로 매핑한 가중치 경로는 약 1μs로 보고한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D01",
+    "category": "비교",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant와 KIVI는 새로 생성한 토큰을 처리할 때 뭐가 달라?",
+    "expected_answer": "TurboQuant 원논문의 실험 설명에 따르면 KIVI는 생성 토큰을 양자화하지 않는 반면 TurboQuant는 스트리밍 생성 중에도 양자화한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D02",
+    "category": "비교",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant와 PQ는 코드북 준비 방식이 어떻게 달라?",
+    "expected_answer": "일반 PQ는 데이터에 맞춰 k-means 코드북을 학습하지만 TurboQuant는 회전 후 알려진 분포의 코드북을 사전 계산해 재사용한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D03",
+    "category": "비교",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant-mse와 TurboQuant-prod 중 내적 오차에는 어느 쪽이 유리해?",
+    "expected_answer": "원논문은 낮은 비트에서는 prod가 유리하고 비트가 늘면 mse의 편향이 줄어 내적 오차가 더 작아질 수 있다고 보고한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D04",
+    "category": "비교",
+    "paper": "2605.08114v1",
+    "question": "KQV와 QKQV의 핵심 차이는?",
+    "expected_answer": "V에는 둘 다 잔차 QJL을 적용하지만 QKQV는 K에도 QJL을 추가한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D05",
+    "category": "비교",
+    "paper": "2605.08114v1",
+    "question": "WHT와 QJL은 원래 벡터를 되돌릴 수 있다는 점에서 어떻게 달라?",
+    "expected_answer": "WHT는 정확히 역변환 가능한 회전이고 QJL은 좌표 크기를 버리는 sign 스케치라 정확한 역변환이 불가능하다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D06",
+    "category": "비교",
+    "paper": "2605.08114v1",
+    "question": "왜 QJL 보정이 K와 V에서 똑같이 유리하지 않아?",
+    "expected_answer": "K 오차는 softmax의 비선형 경로를 지나고 V 오차는 선형 가중합으로 들어가므로 편향 제거와 분산의 효과가 다르다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D07",
+    "category": "비교",
+    "paper": "2606.12556v2",
+    "question": "긴 대화에서 ITME가 CPU-offload보다 유리해지는 이유는?",
+    "expected_answer": "호스트 캐시 용량을 넘어도 원격 CXL-hybrid 용량을 사용해 KV를 재사용할 수 있어 전체 재계산을 줄인다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "D08",
+    "category": "비교",
+    "paper": "2606.12556v2",
+    "question": "ITME의 FPGA 실험과 CMM 실험은 목적이 어떻게 달라?",
+    "expected_answer": "FPGA는 제어 로직과 prefetch의 기능 실현 가능성을, CMM 기반 플랫폼은 성능 잠재력을 평가한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R01",
+    "category": "관계 추론",
+    "paper": "2504.19874v1",
+    "question": "총 b비트를 쓸 때 MSE와 잔차 QJL에는 각각 몇 비트를 배정해?",
+    "expected_answer": "MSE 양자화에 b−1비트, 잔차 QJL에 1비트를 배정한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R02",
+    "category": "관계 추론",
+    "paper": "2504.19874v1",
+    "question": "TurboQuant의 압축 인덱스에서 원래 좌표계 벡터는 어떻게 복원해?",
+    "expected_answer": "인덱스에 해당하는 코드북 중심점을 불러온 다음 회전 행렬의 전치를 곱해 원래 기저로 되돌린다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R03",
+    "category": "관계 추론",
+    "paper": "2605.08114v1",
+    "question": "통계 분석에서 K 방향 오차가 출력 오차로 이어지는 경로는?",
+    "expected_answer": "K 방향 오차가 attention KL과 top-k routing 오류로 이어지고 잘못된 가중합이 출력 방향 오차를 만든다고 설명한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R04",
+    "category": "관계 추론",
+    "paper": "2605.08114v1",
+    "question": "통계 분석에서 MSE 한 비트를 QJL로 바꾸면 분산이 약 2π배라는 계산은 어떻게 나와?",
+    "expected_answer": "잔차 에너지의 약 4배 증가와 QJL의 π/2 계수를 곱한 동일 예산 근사이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R05",
+    "category": "관계 추론",
+    "paper": "2606.12556v2",
+    "question": "ITME에서 SSD, DRAM, CXL은 각각 어떤 역할을 맡아?",
+    "expected_answer": "SSD/NAND는 대용량 저장, DRAM은 지연을 숨기는 캐시·prefetch 버퍼, CXL은 이를 바이트 주소 메모리로 노출하는 인터페이스 역할이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R06",
+    "category": "관계 추론",
+    "paper": "2606.12556v2",
+    "question": "ITME는 다음 레이어의 데이터 이동을 현재 계산과 어떻게 겹쳐?",
+    "expected_answer": "L층 GPU 계산과 L+1층 DMA prefetch를 겹치고 호스트 staging을 통해 원격 데이터 전송을 파이프라인화한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R07",
+    "category": "관계 추론",
+    "paper": "2606.12556v2",
+    "question": "ITME에서 필요한 KV가 없을 때 원격 읽기를 기다리지 않고 재계산하는 이유는?",
+    "expected_answer": "누락된 소수 블록을 원격에서 가져오는 지연과 큰 청크 전송·복잡한 검색 비용보다 GPU 재계산이 효율적이기 때문이다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  },
+  {
+    "id": "R08",
+    "category": "관계 추론",
+    "paper": "2606.12556v2",
+    "question": "ITME는 현재 대화 턴의 decode 단계에서 다음 턴을 위해 뭘 준비해?",
+    "expected_answer": "Remote Manager가 이전 턴에서 생성된 prefix의 필요한 KV 청크 순서를 파악해 SSD에서 내부 DRAM으로 선행 로드한다.",
+    "query_language": "ko",
+    "document_language": "en",
+    "tags": [
+      "cross-lingual"
+    ],
+    "origin": "AI-authored realistic query, not a production user log"
+  }
+]
