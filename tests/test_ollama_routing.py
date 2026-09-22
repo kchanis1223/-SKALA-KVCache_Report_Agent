@@ -87,7 +87,8 @@ def test_native_json_schema_is_sent_to_ollama():
         assert str(request.url) == "http://localhost:11434/api/chat"
         assert body["model"] == "qwen3:8b" and body["think"] is False
         assert body["format"]["properties"]["findings"]
-        assert body["stream"] is False and body["keep_alive"] == 0
+        # keep_alive는 호출마다 모델을 내리지 않도록 기본값을 유지합니다.
+        assert body["stream"] is False and body["keep_alive"] == "5m"
         return httpx.Response(200, json={"done": True, "message": {"content": '{"findings":[]}'}})
 
     model = OllamaChat("qwen3:8b", transport=httpx.MockTransport(handler))
@@ -190,3 +191,25 @@ def test_explicit_environment_file_does_not_load_local(monkeypatch, tmp_path):
     (tmp_path / ".env.local").write_text("TAVILY_API_KEY=local-fixture\n")
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     assert read_environment(path)["TAVILY_API_KEY"] == "custom-fixture"
+
+
+def test_keep_alive_default_avoids_reloading_the_model_every_call():
+    """기본값은 모델을 메모리에 남기고, 필요하면 0으로 되돌릴 수 있다.
+
+    keep_alive=0이면 관점 평가처럼 같은 모델을 수십 번 부르는 경로에서 호출마다
+    적재 비용을 반복해서 냅니다.
+    """
+    from skala_agent.integrations.ollama import DEFAULT_KEEP_ALIVE
+
+    sent = []
+
+    def handler(request):
+        sent.append(json.loads(request.content)["keep_alive"])
+        return httpx.Response(200, json={"done": True, "message": {"content": "ok"}})
+
+    transport = httpx.MockTransport(handler)
+    OllamaChat("qwen3:4b", transport=transport).invoke([])
+    OllamaChat("qwen3:4b", transport=transport, keep_alive=0).invoke([])
+
+    assert sent == [DEFAULT_KEEP_ALIVE, 0]
+    assert DEFAULT_KEEP_ALIVE != 0
