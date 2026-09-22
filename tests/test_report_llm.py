@@ -49,6 +49,7 @@ def _make_state():
         "synthesis": [analysis_tq],
         "synthesis_findings": [],
         "missing_evidence": [],
+        "run_mode": "real",
     }
 
 

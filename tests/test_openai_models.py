@@ -158,4 +158,3 @@ def test_strict_schema_leaves_non_object_nodes_alone():
 
     schema = {"type": "array", "items": {"type": "string"}}
     assert _strict_schema(schema) == schema
->>>>>>> origin/main
