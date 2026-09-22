@@ -3,6 +3,13 @@
 import re
 
 
+def quote_options(content: str) -> list[str]:
+    """재추출용 원문 후보. 문장과 겹치는 창 모두 원문의 연속 부분문자열입니다."""
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+|\n+", content)]
+    windows = [content[start : start + 300].strip() for start in range(0, len(content), 250)]
+    return list(dict.fromkeys(q for q in sentences + windows if q and len(q) <= 300))
+
+
 def source_quote(content: str, quote: str) -> str | None:
     if not quote.strip():
         return None

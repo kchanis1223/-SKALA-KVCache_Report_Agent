@@ -4,6 +4,7 @@ import json
 
 from pydantic import ValidationError
 
+from skala_agent.agents.citations import quote_options
 from skala_agent.integrations.contracts import EvaluationDraft, ModelOutputError
 
 
@@ -19,7 +20,34 @@ class StructuredExtractor:
                 minItems=len(question_ids), maxItems=len(question_ids)
             )
             response_schema["$defs"]["Finding"]["properties"]["question_id"]["enum"] = question_ids
-        schema = json.dumps(response_schema, ensure_ascii=False)
+        source_ids = [source["id"] for source in payload.get("sources", [])]
+        if source_ids:
+            for definition in ("CitationDraft", "MeasurementDraft"):
+                response_schema["$defs"][definition]["properties"]["source_id"]["enum"] = source_ids
+        if payload.get("exact_quotes") and source_ids:
+            # 자유 생성으로 다시 의역하지 못하게 출처와 실제 부분문자열을 함께 제한합니다.
+            response_schema["$defs"]["CitationDraft"] = {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "properties": {
+                            "source_id": {"type": "string", "const": source["id"]},
+                            "quote": {"type": "string", "enum": quote_options(source["content"])},
+                        },
+                        "required": ["source_id", "quote"],
+                        "additionalProperties": False,
+                    }
+                    for source in payload["sources"]
+                    if source["content"].strip()
+                ]
+            }
+        # native format에 전달한 큰 스키마를 system에도 복제하면 입력 문맥을 소모합니다.
+        schema_instruction = (
+            ""
+            if hasattr(self.model, "invoke_structured")
+            else "\n출력 JSON Schema (답변에 복사하지 마세요):\n"
+            + json.dumps(response_schema, ensure_ascii=False)
+        )
         example = json.dumps(
             {
                 "findings": [
@@ -37,8 +65,7 @@ class StructuredExtractor:
                 "role": "system",
                 "content": (
                     system
-                    + "\n출력 JSON Schema (답변에 복사하지 마세요):\n"
-                    + schema
+                    + schema_instruction
                     + "\nReturn an INSTANCE, not the schema. The only top-level key is findings."
                     + " Do not output $defs, properties, type, or required.\nExample answer:\n"
                     + example

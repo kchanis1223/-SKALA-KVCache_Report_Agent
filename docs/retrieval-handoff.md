@@ -23,14 +23,15 @@ uv sync --extra embedding
 uv run skala-index          # data/raw/*.pdf -> index/bge-m3
 ```
 
-그다음 provider에 Retriever를 넘깁니다. 현재 `build_provider`는 `retriever` 인자를
-받지만 호출부에서 아무도 넘기지 않아 항상 `None`입니다.
+실제 모드의 `build_provider()`는 이제 색인을 자동으로 읽어 기술 조사와 도메인 평가에
+연결합니다(#35). `RAG_INDEX_DIR`로 경로를 변경할 수 있습니다. 기본 demo는 색인을
+읽지 않습니다. 직접 주입하거나 자동 연결을 끄려면 다음처럼 지정합니다.
 
 ```python
 from skala_agent.adapters import build_provider
 from skala_agent.retrieval.factory import try_load_retriever
 
-# 색인이 없으면 None이 돌아오고, 기존처럼 웹검색만으로 동작합니다.
+# 색인이 없으면 None이 돌아오고, 기술 조사는 pending이며 도메인은 웹검색만 사용합니다.
 provider = build_provider(".env", retriever=try_load_retriever())
 ```
 
@@ -102,3 +103,15 @@ dense 임베딩이 구분하지 못해 검색에 실패합니다. 이런 질의�
 **색인이 없으면 조용히 실패하지 않게 하세요.** `load_retriever`는 색인이 없으면
 `IndexNotBuiltError`를 던지고, `try_load_retriever`는 `None`을 돌려줍니다.
 후자를 쓸 때는 RAG 없이 돌았다는 사실이 결과에 남도록 해주세요.
+
+## 연결 검증 (#35)
+
+- 기본 factory/runtime 및 `skala-evaluate`에서 자동 로딩하는 경로를 회귀 테스트합니다.
+- 합성 색인을 사용하는 전체 workflow 테스트는 기술별 primary 필터, domain RAG,
+  검증된 논문 원문·페이지·chunk_id의 보고서 출력을 검사합니다.
+- 로컬 원문 PDF로 BGE-M3 색인 69청크/1024차원을 생성하고, Qwen3 4B로 두 기술의
+  assessed TechAnalysis와 논문 근거 12건을 추출했습니다. 별도 Qwen3 8B 지지 검증은
+  이 중 2건을 통과시켰습니다. 전체 기술 요약은 보류하고 검증된 논문 관측만 보고서에
+  원문·페이지·chunk_id와 함께 출력되는 것을 확인했습니다.
+- 이 실측은 인용 연결 검증이며 기술 주장 자체의 정확도를 보증하지 않습니다.
+  실제 4관점 평가의 모델 출력 안정화는 #34에서 RAG 연결 상태로 이어서 검증합니다.

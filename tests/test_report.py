@@ -127,7 +127,7 @@ def test_report_renders_verified_technical_overview_and_tradeoff_findings():
             overview="검증된 기술 개요",
             scope=["검증된 적용 범위"],
             limitations=["검증된 한계"],
-            evidence_ids=["overview", "unverified"],
+            evidence_ids=["overview"],
             status="assessed",
         )
     }
@@ -180,3 +180,60 @@ def test_report_lists_shared_verified_verdicts_as_common_points():
     report = run(state)["report"]
 
     assert "trl: 공통 판정 (기술: turboquant, itme) [1] [2]" in report
+
+
+def test_report_withholds_research_when_only_some_claims_are_verified():
+    state = _state(
+        Assessment(
+            technology_id="turboquant", perspective="trl", verdict="판단 보류", rationale="fixture"
+        ),
+        [
+            _evidence("overview", "https://example.org/overview"),
+            _evidence("unverified", "https://example.org/unverified", supports_claim=False),
+        ],
+    )
+    state["tech_analysis"] = {
+        "turboquant": TechAnalysis(
+            technology_id="turboquant",
+            overview="Supported overview",
+            scope=["Unsupported scope"],
+            evidence_ids=["overview", "unverified"],
+            status="assessed",
+        )
+    }
+    report = run(state)["report"]
+    assert "Supported overview" not in report and "Unsupported scope" not in report
+    assert "검증된 기술 개요 근거 부족" in report
+
+
+def test_partial_research_shows_only_verified_paper_observations():
+    good = _evidence("good", "https://example.org/paper").model_copy(
+        update={
+            "source_type": "paper",
+            "claim": "Supported observation",
+            "chunk_id": "paper-p2-1",
+            "page": 2,
+        }
+    )
+    bad = _evidence("bad", "https://example.org/paper", supports_claim=False).model_copy(
+        update={"claim": "Unsupported claim"}
+    )
+    state = _state(
+        Assessment(
+            technology_id="turboquant", perspective="trl", verdict="판단 보류", rationale="fixture"
+        ),
+        [good, bad],
+    )
+    state["tech_analysis"] = {
+        "turboquant": TechAnalysis(
+            technology_id="turboquant",
+            overview="Unverified composite overview",
+            evidence_ids=["good", "bad"],
+            status="assessed",
+        )
+    }
+    report = run(state)["report"]
+    assert "판단 보류 (검증된 기술 개요 근거 부족)" in report
+    assert "검증된 논문 관측: Supported observation" in report
+    assert "page: 2; chunk_id: paper-p2-1" in report
+    assert "Unverified composite overview" not in report and "Unsupported claim" not in report
