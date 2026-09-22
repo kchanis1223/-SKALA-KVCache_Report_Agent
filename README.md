@@ -30,6 +30,22 @@ uv run --extra local skala-evaluate --perspective all
 ```
 
 Qwen3를 Transformers로 Python에서 직접 실행합니다. 최초 호출 시 모델을 다운로드합니다. 모델 교체는 `--model Qwen/Qwen3-1.7B` 또는 `model = TransformersQwen(model_id="...")`로 지정합니다. 출력은 `outputs/evaluations.json`의 **검증 전 잠정 평가**입니다. 설정·평가 규칙·한계는 [이슈 #5 실행 안내](docs/issue-5-evaluation.md)를 참고하세요.
+실행 모드는 `--mode`로 구분합니다. 기본값 `demo`는 API 키 없이 동작하고, `real`은
+실제 provider(`skala_agent.adapters.build_provider()`)를 불러옵니다. adapter가 아직
+없으면 demo로 되돌아가지 않고 안내 메시지와 함께 종료합니다.
+
+```bash
+uv run skala-agent --mode demo    # 기본값. 외부 호출 없음
+uv run skala-agent --mode real    # 실제 검색·LLM provider 연결
+```
+
+`--timeout`(기본 120초)은 외부 서비스 호출 1건의 상한입니다. 상한을 넘긴 관점은
+`판단 보류`로 남고 나머지 관점은 그대로 진행하므로, 느린 서비스 하나가 전체 실행을
+멈추지 않습니다. `--timeout 0`이면 상한을 걸지 않습니다.
+
+```bash
+uv run skala-agent --mode real --timeout 60
+```
 
 ## 구성
 
