@@ -1,6 +1,7 @@
 """4개 관점 평가 provider. 모델 객체만 주입하여 로컬/API 구현을 교체합니다."""
 
 from skala_agent.agents.web_evaluation import SUPPORTED, WebEvaluator
+from skala_agent.evaluation_contracts import validate_evaluation_output
 from skala_agent.evidence import evidence_id
 from skala_agent.integrations.contracts import ModelOutputError, ServiceConfigurationError
 from skala_agent.integrations.structured import StructuredExtractor
@@ -53,7 +54,7 @@ class EvaluationProvider(DemoProvider):
                 sources = []
             assessments.append(assessment)
             collected.extend(sources)
-        return assessments, collected
+        return validate_evaluation_output(perspective, technologies, assessments, collected)
 
     def search_missing(self, missing):
         collected = {}

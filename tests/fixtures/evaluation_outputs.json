@@ -1,0 +1,568 @@
+{
+  "notice": "모든 주장·수치·출처는 계약 검증용 합성 데이터이며 실제 기술 평가가 아닙니다.",
+  "normal": [
+    {
+      "perspective": "trl",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "trl",
+          "verdict": "합성 테스트 판정",
+          "rationale": "계약 예제이며 실제 판정 아님",
+          "confidence": "medium",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "상",
+              "evidence_ids": [
+                "trl-fixture-tech-2063f6905207d199fa21ccf6",
+                "trl-fixture-tech-82b12b6ace0d70738c3c160e"
+              ]
+            }
+          ],
+          "evidence_ids": [
+            "trl-fixture-tech-2063f6905207d199fa21ccf6",
+            "trl-fixture-tech-82b12b6ace0d70738c3c160e"
+          ],
+          "status": "assessed",
+          "error": null,
+          "details": {
+            "perspective": "trl",
+            "level": 3
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "trl-fixture-tech-2063f6905207d199fa21ccf6",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/1",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p1-1",
+          "confidence": "low",
+          "page": 1,
+          "supports_claim": false
+        },
+        {
+          "id": "trl-fixture-tech-82b12b6ace0d70738c3c160e",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/2",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p2-1",
+          "confidence": "low",
+          "page": 2,
+          "supports_claim": false
+        }
+      ]
+    },
+    {
+      "perspective": "market",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "market",
+          "verdict": "합성 테스트 판정",
+          "rationale": "계약 예제이며 실제 판정 아님",
+          "confidence": "medium",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "상",
+              "evidence_ids": [
+                "market-fixture-tech-5c6081f2e5da8ceee956569f",
+                "market-fixture-tech-c3bcb2691888891ce07a914b"
+              ]
+            }
+          ],
+          "evidence_ids": [
+            "market-fixture-tech-5c6081f2e5da8ceee956569f",
+            "market-fixture-tech-c3bcb2691888891ce07a914b"
+          ],
+          "status": "assessed",
+          "error": null,
+          "details": {
+            "perspective": "market",
+            "demand": "수요 존재",
+            "adoption": "연구 단계",
+            "ecosystem": "형성 중",
+            "dependency_risks": []
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "market-fixture-tech-5c6081f2e5da8ceee956569f",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/1",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p1-1",
+          "confidence": "low",
+          "page": 1,
+          "supports_claim": false
+        },
+        {
+          "id": "market-fixture-tech-c3bcb2691888891ce07a914b",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/2",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p2-1",
+          "confidence": "low",
+          "page": 2,
+          "supports_claim": false
+        }
+      ]
+    },
+    {
+      "perspective": "stakeholder",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "stakeholder",
+          "verdict": "합성 테스트 판정",
+          "rationale": "계약 예제이며 실제 판정 아님",
+          "confidence": "medium",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "상",
+              "evidence_ids": [
+                "stakeholder-fixture-tech-76c69580d5788fda3c3515dc",
+                "stakeholder-fixture-tech-355c29380f61e2db31ab1ca2"
+              ]
+            }
+          ],
+          "evidence_ids": [
+            "stakeholder-fixture-tech-76c69580d5788fda3c3515dc",
+            "stakeholder-fixture-tech-355c29380f61e2db31ab1ca2"
+          ],
+          "status": "assessed",
+          "error": null,
+          "details": {
+            "perspective": "stakeholder",
+            "positions": [
+              {
+                "stakeholder": "cloud_operator",
+                "stance": "자료 없음",
+                "rationale": "근거 부족",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "gpu_vendor",
+                "stance": "지지",
+                "rationale": "합성 근거",
+                "evidence_ids": [
+                  "stakeholder-fixture-tech-76c69580d5788fda3c3515dc",
+                  "stakeholder-fixture-tech-355c29380f61e2db31ab1ca2"
+                ]
+              },
+              {
+                "stakeholder": "investor",
+                "stance": "자료 없음",
+                "rationale": "근거 부족",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "memory_vendor",
+                "stance": "자료 없음",
+                "rationale": "근거 부족",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "open_source",
+                "stance": "자료 없음",
+                "rationale": "근거 부족",
+                "evidence_ids": []
+              }
+            ],
+            "overall": "우호적"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "stakeholder-fixture-tech-76c69580d5788fda3c3515dc",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/1",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p1-1",
+          "confidence": "low",
+          "page": 1,
+          "supports_claim": false
+        },
+        {
+          "id": "stakeholder-fixture-tech-355c29380f61e2db31ab1ca2",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/2",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p2-1",
+          "confidence": "low",
+          "page": 2,
+          "supports_claim": false
+        }
+      ]
+    },
+    {
+      "perspective": "domain",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "domain",
+          "verdict": "합성 테스트 판정",
+          "rationale": "계약 예제이며 실제 판정 아님",
+          "confidence": "medium",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "상",
+              "evidence_ids": [
+                "domain-fixture-tech-0960a863ebd901b7a6d3f9be",
+                "domain-fixture-tech-e548fbff3558dbec4f43a153"
+              ]
+            }
+          ],
+          "evidence_ids": [
+            "domain-fixture-tech-0960a863ebd901b7a6d3f9be",
+            "domain-fixture-tech-e548fbff3558dbec4f43a153"
+          ],
+          "status": "assessed",
+          "error": null,
+          "details": {
+            "perspective": "domain",
+            "cost": "조건부 개선",
+            "sla_risk": "낮음",
+            "operations": "즉시 도입 가능",
+            "operational_risks": []
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "id": "domain-fixture-tech-0960a863ebd901b7a6d3f9be",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/1",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p1-1",
+          "confidence": "low",
+          "page": 1,
+          "supports_claim": false
+        },
+        {
+          "id": "domain-fixture-tech-e548fbff3558dbec4f43a153",
+          "technology_id": "fixture-tech",
+          "claim": "합성 테스트 주장",
+          "url": "https://example.org/fixture/2",
+          "title": "합성 테스트 문서",
+          "source_type": "paper",
+          "excerpt": "테스트용 원문입니다.",
+          "section_or_page": "합성 절",
+          "chunk_id": "fixture-p2-1",
+          "confidence": "low",
+          "page": 2,
+          "supports_claim": false
+        }
+      ]
+    }
+  ],
+  "pending": [
+    {
+      "perspective": "trl",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "trl",
+          "verdict": "판단 보류",
+          "rationale": "근거 부족",
+          "confidence": "low",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "하",
+              "evidence_ids": []
+            }
+          ],
+          "evidence_ids": [],
+          "status": "pending",
+          "error": null,
+          "details": {
+            "perspective": "trl",
+            "level": null
+          }
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "perspective": "market",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "market",
+          "verdict": "판단 보류",
+          "rationale": "근거 부족",
+          "confidence": "low",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "하",
+              "evidence_ids": []
+            }
+          ],
+          "evidence_ids": [],
+          "status": "pending",
+          "error": null,
+          "details": {
+            "perspective": "market",
+            "demand": null,
+            "adoption": null,
+            "ecosystem": null,
+            "dependency_risks": []
+          }
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "perspective": "stakeholder",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "stakeholder",
+          "verdict": "판단 보류",
+          "rationale": "근거 부족",
+          "confidence": "low",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "하",
+              "evidence_ids": []
+            }
+          ],
+          "evidence_ids": [],
+          "status": "pending",
+          "error": null,
+          "details": {
+            "perspective": "stakeholder",
+            "positions": [
+              {
+                "stakeholder": "cloud_operator",
+                "stance": "자료 없음",
+                "rationale": "근거 없음",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "gpu_vendor",
+                "stance": "자료 없음",
+                "rationale": "근거 없음",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "investor",
+                "stance": "자료 없음",
+                "rationale": "근거 없음",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "memory_vendor",
+                "stance": "자료 없음",
+                "rationale": "근거 없음",
+                "evidence_ids": []
+              },
+              {
+                "stakeholder": "open_source",
+                "stance": "자료 없음",
+                "rationale": "근거 없음",
+                "evidence_ids": []
+              }
+            ],
+            "overall": null
+          }
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "perspective": "domain",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "domain",
+          "verdict": "판단 보류",
+          "rationale": "근거 부족",
+          "confidence": "low",
+          "signals": [
+            {
+              "question": "합성 조사 질문",
+              "grade": "하",
+              "evidence_ids": []
+            }
+          ],
+          "evidence_ids": [],
+          "status": "pending",
+          "error": null,
+          "details": {
+            "perspective": "domain",
+            "cost": null,
+            "sla_risk": null,
+            "operations": null,
+            "operational_risks": []
+          }
+        }
+      ],
+      "evidence": []
+    }
+  ],
+  "failed": [
+    {
+      "perspective": "trl",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "trl",
+          "verdict": "판단 보류",
+          "rationale": "검색 실패",
+          "confidence": "low",
+          "signals": [],
+          "evidence_ids": [],
+          "status": "failed",
+          "error": {
+            "code": "TimeoutError",
+            "message": "요청 시간 초과",
+            "retryable": true
+          },
+          "details": null
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "perspective": "market",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "market",
+          "verdict": "판단 보류",
+          "rationale": "검색 실패",
+          "confidence": "low",
+          "signals": [],
+          "evidence_ids": [],
+          "status": "failed",
+          "error": {
+            "code": "TimeoutError",
+            "message": "요청 시간 초과",
+            "retryable": true
+          },
+          "details": null
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "perspective": "stakeholder",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "stakeholder",
+          "verdict": "판단 보류",
+          "rationale": "검색 실패",
+          "confidence": "low",
+          "signals": [],
+          "evidence_ids": [],
+          "status": "failed",
+          "error": {
+            "code": "TimeoutError",
+            "message": "요청 시간 초과",
+            "retryable": true
+          },
+          "details": null
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "perspective": "domain",
+      "technology_ids": [
+        "fixture-tech"
+      ],
+      "assessments": [
+        {
+          "technology_id": "fixture-tech",
+          "perspective": "domain",
+          "verdict": "판단 보류",
+          "rationale": "검색 실패",
+          "confidence": "low",
+          "signals": [],
+          "evidence_ids": [],
+          "status": "failed",
+          "error": {
+            "code": "TimeoutError",
+            "message": "요청 시간 초과",
+            "retryable": true
+          },
+          "details": null
+        }
+      ],
+      "evidence": []
+    }
+  ]
+}
