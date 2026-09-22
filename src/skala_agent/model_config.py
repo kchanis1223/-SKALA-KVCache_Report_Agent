@@ -6,9 +6,9 @@ from threading import Lock
 from typing import Literal
 
 from dotenv import dotenv_values
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from skala_agent.integrations.ollama import OllamaChat
+from skala_agent.integrations.ollama import DEFAULT_KEEP_ALIVE, OllamaChat, validate_keep_alive
 from skala_agent.integrations.openai import OpenAIResponses
 
 AGENTS = (
@@ -63,6 +63,8 @@ class ModelSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
     provider: Literal["openai", "ollama"] = "openai"
     openai_model: str = DEFAULT_OPENAI_MODEL
+    # 종합·보고서의 전용 모델 호출을 생략하는 호환 옵션. 모델 배정은 바꾸지 않습니다.
+    use_single_model: bool = False
     # provider="ollama"로 되돌릴 때만 쓰입니다.
     light_model: Literal["qwen3:4b"] = "qwen3:4b"
     main_model: Literal["qwen3:4b", "qwen3:8b"] = "qwen3:4b"
@@ -70,14 +72,18 @@ class ModelSettings(BaseModel):
     timeout: float = Field(default=120, gt=0)
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
-    # 모델이 하나로 통일된 뒤로는 모델 선택이 아니라 "종합·보고서 단계에 전용
-    # 모델 객체를 둘지"만 좌우합니다. evaluation_provider가 이 값을 읽습니다.
-    use_single_model: bool = False
+    keep_alive: int | str = DEFAULT_KEEP_ALIVE
+
+    @field_validator("keep_alive", mode="before")
+    @classmethod
+    def check_keep_alive(cls, value):
+        return validate_keep_alive(value)
 
     @classmethod
     def from_environment(cls, env):
         names = {
             "provider": "LLM_PROVIDER",
+            "use_single_model": "USE_SINGLE_MODEL",
             "openai_model": "OPENAI_MODEL",
             "light_model": "LIGHT_MODEL",
             "main_model": "MAIN_MODEL",
@@ -85,7 +91,7 @@ class ModelSettings(BaseModel):
             "timeout": "OLLAMA_TIMEOUT",
             "openai_api_key": "OPENAI_API_KEY",
             "openai_base_url": "OPENAI_BASE_URL",
-            "use_single_model": "USE_SINGLE_MODEL",
+            "keep_alive": "OLLAMA_KEEP_ALIVE",
         }
         return cls(**{key: env[name] for key, name in names.items() if name in env})
 
@@ -129,6 +135,7 @@ class ModelRouter:
                 name,
                 base_url=settings.base_url,
                 timeout=settings.timeout,
+                keep_alive=settings.keep_alive,
                 transport=transport,
                 lock=locks.setdefault(name, Lock()),
             )

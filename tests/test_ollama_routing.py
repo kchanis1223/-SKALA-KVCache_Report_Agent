@@ -8,7 +8,7 @@ from skala_agent.evaluation_provider import EvaluationProvider
 from skala_agent.integrations.contracts import ModelOutputError, SearchDocument
 from skala_agent.integrations.ollama import OllamaChat
 from skala_agent.integrations.structured import StructuredExtractor
-from skala_agent.model_config import ModelRouter, ModelSettings, read_environment
+from skala_agent.model_config import AGENTS, ModelRouter, ModelSettings, read_environment
 from skala_agent.schemas import Technology
 from skala_agent.workflow.graph import build_graph, initial_state
 
@@ -63,6 +63,8 @@ def test_dotenv_boolean_and_environment_precedence(monkeypatch, tmp_path):
     path = tmp_path / ".env"
     path.write_text("USE_SINGLE_MODEL=false\nLLM_PROVIDER=ollama\nMAIN_MODEL=qwen3:8b\n")
     monkeypatch.delenv("USE_SINGLE_MODEL", raising=False)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("MAIN_MODEL", raising=False)
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
     settings = ModelSettings.from_environment(read_environment(path))
     assert settings.use_single_model is False
@@ -87,7 +89,6 @@ def test_native_json_schema_is_sent_to_ollama():
         assert str(request.url) == "http://localhost:11434/api/chat"
         assert body["model"] == "qwen3:8b" and body["think"] is False
         assert body["format"]["properties"]["findings"]
-        # keep_alive는 호출마다 모델을 내리지 않도록 기본값을 유지합니다.
         assert body["stream"] is False and body["keep_alive"] == "5m"
         return httpx.Response(200, json={"done": True, "message": {"content": '{"findings":[]}'}})
 
@@ -193,23 +194,109 @@ def test_explicit_environment_file_does_not_load_local(monkeypatch, tmp_path):
     assert read_environment(path)["TAVILY_API_KEY"] == "custom-fixture"
 
 
-def test_keep_alive_default_avoids_reloading_the_model_every_call():
-    """기본값은 모델을 메모리에 남기고, 필요하면 0으로 되돌릴 수 있다.
-
-    keep_alive=0이면 관점 평가처럼 같은 모델을 수십 번 부르는 경로에서 호출마다
-    적재 비용을 반복해서 냅니다.
-    """
-    from skala_agent.integrations.ollama import DEFAULT_KEEP_ALIVE
-
-    sent = []
+@pytest.mark.parametrize(
+    "configured, expected",
+    [
+        (None, "5m"),
+        ("10m", "10m"),
+        ("0", 0),
+        ("-1", -1),
+        ("300", 300),
+        ("1h30m", "1h30m"),
+        ("500ms", "500ms"),
+        ("1.5s", "1.5s"),
+    ],
+)
+@pytest.mark.parametrize("main_model", ["qwen3:4b", "qwen3:8b"])
+def test_keep_alive_reaches_every_model_and_request(configured, expected, main_model):
+    calls = []
 
     def handler(request):
-        sent.append(json.loads(request.content)["keep_alive"])
-        return httpx.Response(200, json={"done": True, "message": {"content": "ok"}})
+        body = json.loads(request.content)
+        calls.append(body)
+        return httpx.Response(200, json={"done": True, "message": {"content": "{}"}})
 
-    transport = httpx.MockTransport(handler)
-    OllamaChat("qwen3:4b", transport=transport).invoke([])
-    OllamaChat("qwen3:4b", transport=transport, keep_alive=0).invoke([])
+    env = {} if configured is None else {"OLLAMA_KEEP_ALIVE": configured}
+    settings = ModelSettings.from_environment(
+        {**env, "LLM_PROVIDER": "ollama", "MAIN_MODEL": main_model}
+    )
+    router = ModelRouter(settings, transport=httpx.MockTransport(handler))
+    for agent in AGENTS:
+        assert isinstance(router.for_agent(agent), OllamaChat)
+        router.for_agent(agent).invoke([])
+        router.for_agent(agent).invoke_structured([], {"type": "object"})
+    assert len(calls) == 2 * len(AGENTS)
+    assert all(call["keep_alive"] == expected for call in calls)
+    assert {call["model"] for call in calls} == {"qwen3:4b", main_model}
 
-    assert sent == [DEFAULT_KEEP_ALIVE, 0]
-    assert DEFAULT_KEEP_ALIVE != 0
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "forever",
+        "5d",
+        "-2",
+        -2,
+        True,
+        False,
+        None,
+        1.5,
+        "NaN",
+        "inf",
+        "5 m",
+        "1e3",
+        "9223372037",
+        "999999999999h",
+        {},
+        [],
+    ],
+)
+def test_invalid_keep_alive_is_rejected_before_requests(value):
+    with pytest.raises(ValidationError):
+        ModelSettings(keep_alive=value)
+    with pytest.raises(ValueError):
+        OllamaChat("qwen3:4b", keep_alive=value)
+
+
+def test_keep_alive_environment_precedence(monkeypatch, tmp_path):
+    path = tmp_path / ".env"
+    path.write_text("OLLAMA_KEEP_ALIVE=1m\n")
+    (tmp_path / ".env.local").write_text("OLLAMA_KEEP_ALIVE=2m\n")
+    monkeypatch.delenv("OLLAMA_KEEP_ALIVE", raising=False)
+    assert ModelSettings.from_environment(read_environment(path)).keep_alive == "2m"
+    monkeypatch.setenv("OLLAMA_KEEP_ALIVE", "0")
+    assert ModelSettings.from_environment(read_environment(path)).keep_alive == 0
+
+
+@pytest.mark.parametrize("model_name", ["qwen3:4b", "qwen3:8b"])
+@pytest.mark.parametrize("keep_alive, expected", [("5m", "5m"), (0, 0), (" 0 ", 0)])
+def test_keep_alive_for_each_ollama_model(model_name, keep_alive, expected):
+    def handler(request):
+        body = json.loads(request.content)
+        assert body["model"] == model_name
+        assert body["keep_alive"] == expected
+        return httpx.Response(200, json={"done": True, "message": {"content": "{}"}})
+
+    model = OllamaChat(model_name, keep_alive=keep_alive, transport=httpx.MockTransport(handler))
+    model.invoke([])
+    model.invoke_structured([], {"type": "object"})
+
+
+@pytest.mark.parametrize("provider_name", ["ollama", "openai"])
+@pytest.mark.parametrize("skip_final_models", [False, True])
+def test_provider_final_models_follow_compatibility_setting(provider_name, skip_final_models):
+    settings = ModelSettings.from_environment(
+        {
+            "LLM_PROVIDER": provider_name,
+            "OPENAI_API_KEY": "test",
+            "USE_SINGLE_MODEL": str(skip_final_models).lower(),
+        }
+    )
+    router = ModelRouter(settings)
+    provider = EvaluationProvider(models=router, search=object())
+    assert provider.synthesis_model is (
+        None if skip_final_models else router.for_agent("synthesis")
+    )
+    assert provider.report_model is (None if skip_final_models else router.for_agent("report"))
+    assert settings.assignment() == ModelSettings(provider=provider_name).assignment()

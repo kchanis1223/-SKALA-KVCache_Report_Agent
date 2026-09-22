@@ -1,14 +1,34 @@
 """Ollama native API. 모델 다운로드나 서버 시작은 이 adapter가 수행하지 않습니다."""
 
+import re
+from decimal import Decimal
 from threading import Lock
 
 from skala_agent.integrations.contracts import IncompleteModelOutputError, ModelOutputError
 from skala_agent.integrations.http import post_json
 
-# 호출이 끝나도 모델을 메모리에 얼마나 남겨둘지. 0이면 매 호출마다 모델을
-# 내렸다가 다시 올려, 관점 평가처럼 같은 모델을 수십 번 부르는 경로에서 적재
-# 비용을 반복해서 냅니다. 메모리가 부족한 환경은 0을 주입해 되돌립니다.
 DEFAULT_KEEP_ALIVE = "5m"
+
+
+def validate_keep_alive(value):
+    """정수 초(-1은 무기한) 또는 양의 ms/s/m/h 기간을 허용합니다."""
+    if isinstance(value, str):
+        value = value.strip()
+        if re.fullmatch(r"-?[0-9]+", value):
+            value = int(value)
+        elif re.fullmatch(r"(?:[0-9]+(?:\.[0-9]+)?(?:ms|s|m|h))+", value):
+            units = {"ms": Decimal("0.001"), "s": 1, "m": 60, "h": 3600}
+            seconds = sum(
+                Decimal(amount) * units[unit]
+                for amount, unit in re.findall(r"([0-9]+(?:\.[0-9]+)?)(ms|s|m|h)", value)
+            )
+            if seconds <= 9_223_372_036:
+                return value
+    if type(value) is int and -1 <= value <= 9_223_372_036:
+        return value
+    raise ValueError(
+        "keep_alive는 -1, 0, 양의 정수 초 또는 기간(예: 500ms, 5m, 1h30m)이어야 합니다."
+    )
 
 
 class OllamaChat:
@@ -25,8 +45,8 @@ class OllamaChat:
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.keep_alive = validate_keep_alive(keep_alive)
         self.transport = transport
-        self.keep_alive = keep_alive
         self._lock = lock if lock is not None else Lock()
 
     def invoke(self, messages):

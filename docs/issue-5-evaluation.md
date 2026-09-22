@@ -63,7 +63,7 @@ python app.py --mode real --timeout 600  # Ollama + Tavily로 전체 그래프 �
 skala-evaluate --perspective all       # 네 관점을 JSON으로 평가
 ```
 
-저사양 환경에서는 `qwen3:4b`만 pull하고 `.env`의 `USE_SINGLE_MODEL=true`만 바꾸면 됩니다. 이때 real 그래프의 실제 LLM 요청도 4B만 사용합니다. 모델 호출은 직렬화하고 `keep_alive=0`으로 사용 후 언로드해 두 모델을 동시에 상주시킬 필요를 줄였습니다. 대신 반복 로딩 시간이 발생합니다. 4B도 실행 가능한 메모리가 필요하며 CPU/GPU와 컨텍스트에 따라 속도가 다릅니다.
+저사양 환경에서는 `qwen3:4b`만 pull하고 `.env`의 `USE_SINGLE_MODEL=true`만 바꾸면 됩니다. 이때 real 그래프의 실제 LLM 요청도 4B만 사용합니다. 모델 호출은 공유 Lock으로 직렬화합니다. `OLLAMA_KEEP_ALIVE`의 기본값은 `5m`으로, 연속 호출 사이에 모델을 유지해 반복 로딩 비용을 줄입니다. 메모리가 부족하면 `OLLAMA_KEEP_ALIVE=0`으로 호출 직후 해제를 선택하세요. 4B도 실행 가능한 메모리가 필요하며 CPU/GPU와 컨텍스트에 따라 속도가 다릅니다.
 
 기존 uv 사용자는 `uv sync --locked` 후 `uv run skala-evaluate --perspective all`을 사용하세요. torch/transformers 설치나 모델 파일의 Python 직접 로딩은 더 이상 필요하지 않습니다.
 
@@ -99,3 +99,40 @@ Tavily 출처는 기본적으로 news, arxiv.org는 paper, `OFFICIAL_SOURCE_DOMA
 ## 검증 범위
 
 테스트는 9개 Agent 모델 배정, 단일 4B 객체 재사용, `.env` 우선순위·boolean 파싱, Ollama JSON Schema 요청, 4B/8B 실제 HTTP payload, 불완전 응답 거부, Tavily 키 검증, provider factory 및 전체 그래프 연결을 확인합니다. HTTP는 mock이며 실제 Ollama 4B/8B 생성 품질과 실행시간은 별도 실측 대상입니다. Tavily는 `.env.local`의 키로 실시간 검색을 확인했습니다. 키는 Git에 포함하지 않습니다.
+
+
+## 모델 유지 시간 (#51)
+
+`OLLAMA_KEEP_ALIVE` → `ModelSettings.keep_alive` → 모든 `OllamaChat` 요청의
+`keep_alive`로 전달됩니다. 기본값 `5m`은 Ollama의 기본 유지 시간과 같습니다.
+`LLM_PROVIDER=ollama`의 일반 호출과 구조화 출력 모두 동일하게 적용됩니다.
+OpenAI 요청에는 적용하지 않습니다.
+환경변수 > `.env.local` > `.env` 순서이며, 요청에 명시한 값은 Ollama 서버의
+기본 유지 시간보다 우선합니다. 서버만의 설정을 쓰려면 이 앱 설정에도 원하는 값을 지정하세요.
+
+| 값 | 동작 |
+| --- | --- |
+| `5m` (기본) | 요청 이후 5분 유지 |
+| `0` | 요청 완료 후 즉시 해제 |
+| `300` | 정수 초 단위로 유지 |
+| `500ms`, `1.5s`, `1h30m` | ms/s/m/h 기간 또는 조합 |
+| `-1` | 만료 없이 유지 요청 |
+
+앱은 정수 초(-1 이상)와 위 기간 형식을 지원합니다. 공백만 있는 값, bool,
+소수형 숫자(예: Python `1.5`), 다른 음수, 지원하지 않는 단위(`5d`),
+9,223,372,036초를 넘는 기간은 모델 요청 전에 ValueError/설정 ValidationError로 거부합니다.
+소수 기간은 `1.5s`처럼 단위를 붙입니다. 설정 문자열의 앞뒤 공백은 제거합니다.
+
+유지 시간은 동시 추론 수와 별개입니다. 같은 모델의 공유 Lock은 요청을 직렬화하지만
+이전에 쓴 4B와 현재 쓰는 8B가 함께 상주하는 것은 막지 않습니다. 실제 상주는
+서버 스케줄러·가용 메모리·서버의 모델 수 제한에 따라 달라지므로 유지 시간이
+재로딩 방지를 보장하지는 않습니다. 메모리가 빠듯하면 `MAIN_MODEL=qwen3:4b`로 로컬 모델 배정을 통일하거나
+짧은 유지 시간 또는 `0`을 사용하세요. `USE_SINGLE_MODEL=true`는 종합·보고서의
+전용 모델 호출만 생략하며 모델 배정을 바꾸지 않습니다. 무기한 유지도 서버에 의한 해제를 막지는 않습니다.
+#50의 동시성 변경 시 이 상주 비용을 함께 고려해야 합니다.
+
+기본 demo는 Ollama 요청이나 모델 로딩을 수행하지 않습니다. 실제 실행이 끝나도
+즉시 해제하지 않으며, 마지막 요청의 유지 시간과 서버 정책에 따라 해제됩니다.
+
+API 의미: [Ollama 공식 FAQ](https://docs.ollama.com/faq#how-do-i-keep-a-model-loaded-in-memory-or-make-it-unload-immediately).
+측정 조건과 결과는 [#51 측정 기록](issue-51-keep-alive.md)을 참고하세요.
