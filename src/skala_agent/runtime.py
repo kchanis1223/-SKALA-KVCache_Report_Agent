@@ -17,9 +17,15 @@ ADAPTER_MODULE = "skala_agent.adapters"
 ADAPTER_FACTORY = "build_provider"
 
 # 외부 서비스 호출 1건의 상한. 0 이하이면 상한을 걸지 않습니다.
-DEFAULT_TIMEOUT_SECONDS = 120.0
+#
+# 로컬 오픈웨이트 모델(qwen3:8b) 실측: 관점 1건이 295~600초 이상을 씁니다.
+# ModelRouter가 두 모델에 같은 lock을 공유해 추론이 직렬화되므로, 병렬 fan-out
+# 이후에도 뒤에 선 관점은 대기 시간까지 함께 감당해야 합니다. 120초는 정상 호출도
+# 끊어버려 네 관점 전부가 실패했습니다.
+DEFAULT_TIMEOUT_SECONDS = 900.0
 
-# 한 관점에서 상한을 넘긴 호출이 이만큼 쌓이면 그 관점의 재평가를 건너뜁니다.
+# 한 관점에서 상한을 **연속으로** 넘긴 횟수가 이만큼이면 남은 재평가를 건너뜁니다.
+# 성공하면 0으로 되돌려, 느렸다가 회복한 관점을 영구 배제하지 않습니다.
 MAX_ABANDONED_CALLS = 2
 
 
@@ -97,11 +103,11 @@ class TimeoutProvider:
     def assess(self, perspective, technologies, domain, tech_analysis, evidence):
         if self.abandoned[perspective] >= self.max_abandoned:
             raise TimeoutError(
-                f"[{perspective}] 상한을 넘긴 호출이 {self.abandoned[perspective]}건이라 "
-                "재평가를 건너뜁니다."
+                f"[{perspective}] 상한을 연속 {self.abandoned[perspective]}회 넘겨 "
+                "남은 재평가를 건너뜁니다."
             )
         try:
-            return call_with_timeout(
+            result = call_with_timeout(
                 self.inner.assess,
                 self.seconds,
                 perspective,
@@ -113,6 +119,9 @@ class TimeoutProvider:
         except TimeoutError:
             self.abandoned[perspective] += 1
             raise
+        # 한 번이라도 상한 안에 끝났으면 방치 누적을 초기화합니다.
+        self.abandoned[perspective] = 0
+        return result
 
     def search_missing(self, missing):
         return call_with_timeout(self.inner.search_missing, self.seconds, missing)
