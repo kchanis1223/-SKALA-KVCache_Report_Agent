@@ -44,7 +44,7 @@
 | 관점별 평가 | perspective, technologies, domain, tech_analysis, evidence | `assess(...) -> (list[Assessment], list[Evidence])` |
 | 종합 | analyses, evidence | `synthesis`와 `synthesis_findings`. 외부 검색 없음 |
 | 검증 | synthesis, evidence | provider의 `validate_evidence(evidence) -> list[Evidence]`로 지지 여부를 갱신한 뒤 정규화한 synthesis와 missing_evidence 반환 |
-| 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신 |
+| 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신. 부족 항목을 `(technology_id, perspective)`로 묶어 그룹당 최대 2질의. 그룹 간에 예산을 빌려주지 않고, 예산을 넘긴 항목은 미해결로 남음 |
 | 보고서 | synthesis, evidence, missing_evidence, 입력 기술·도메인, retry_count | report. 외부 검색 없음 |
 
 각 `assess()` 호출은 선택된 기술마다 정확히 하나의 결과를 반환해야 합니다. 기술 ID와 관점이 다르거나 빠지면 계약 오류입니다. `research()`도 선택된 기술 전체를 키로 반환하며, 키와 `TechAnalysis.technology_id`가 일치해야 합니다. Provider 경계에서 Pydantic으로 dict를 검증할 수 있지만 반환 계약은 해당 모델 기준입니다.
