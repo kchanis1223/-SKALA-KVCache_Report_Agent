@@ -6,6 +6,20 @@ from skala_agent.integrations.contracts import IncompleteModelOutputError, Model
 from skala_agent.integrations.http import post_json
 
 
+def _usable_literal(value):
+    """strict 모드가 받아들일 수 있는 문자열 리터럴인지 판단한다.
+
+    실측(gpt-5.4-mini): enum 값에 이중따옴표가 들어가면 400으로 거부됩니다
+    ('" is not allowed in string literals for structured outputs').
+    아포스트로피·탭·백슬래시·퍼센트·em dash는 모두 통과합니다.
+
+    이중따옴표는 지울 수 없습니다. 지우면 원문의 부분문자열이 아니게 되어
+    citations.source_quote가 원문 구간을 찾지 못하고 인용이 버려집니다.
+    그래서 해당 후보만 제외합니다.
+    """
+    return not (isinstance(value, str) and '"' in value)
+
+
 def _single_line(value):
     """strict 모드가 거부하는 줄바꿈을 문자열 리터럴에서 제거한다.
 
@@ -35,12 +49,33 @@ def _strict_schema(schema):
                 schema["required"] = list(schema["properties"])
         if "enum" in schema and isinstance(schema["enum"], list):
             # 줄바꿈 제거 후 같아진 후보는 중복이 되므로 함께 정리합니다.
-            schema["enum"] = list(dict.fromkeys(_single_line(v) for v in schema["enum"]))
+            values = list(dict.fromkeys(_single_line(v) for v in schema["enum"]))
+            values = [value for value in values if _usable_literal(value)]
+            if values:
+                schema["enum"] = values
+            else:
+                # 후보가 남지 않으면 enum 제약을 떼고 자유 문자열로 둡니다.
+                # 빈 enum은 스키마 자체가 무효라 요청이 통째로 거부됩니다.
+                # 값의 정합성은 citations.source_quote가 원문과 대조해 확인합니다.
+                del schema["enum"]
         if "const" in schema:
             schema["const"] = _single_line(schema["const"])
         if "prefixItems" in schema:
+            # strict 모드는 튜플(prefixItems)을 지원하지 않습니다. 그대로 버리면
+            # 자리별 제약이 사라져 모델이 순서를 바꿔 넣습니다. 실측: 종합 모델이
+            # assessment_refs에 (기술, 관점) 순으로 넣어 Pydantic 검증이 실패하고
+            # 실행 전체가 중단됐습니다. 허용 값과 순서를 description으로 남깁니다.
+            prefixes = schema.pop("prefixItems")
             schema["items"] = {"type": "string"}
-            del schema["prefixItems"]
+            hints = [
+                f"[{index}]={'|'.join(prefix['enum'])}"
+                if isinstance(prefix, dict) and prefix.get("enum")
+                else f"[{index}]=자유 문자열"
+                for index, prefix in enumerate(prefixes)
+            ]
+            order = "고정 길이 배열이며 자리 순서가 정해져 있습니다: " + ", ".join(hints)
+            existing = schema.get("description", "")
+            schema["description"] = f"{existing} {order}".strip() if existing else order
     elif isinstance(schema, list):
         schema = [_strict_schema(value) for value in schema]
     return schema

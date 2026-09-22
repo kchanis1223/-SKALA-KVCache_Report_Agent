@@ -59,17 +59,25 @@ def test_report_llm_refine_valid():
     def handler(messages):
         base_text = messages[1]["content"]
         # 원본 markdown 구조와 인용/목차를 그대로 보존하며 다듬은 문장 생성
-        refined = base_text.replace("실제 평가 실행 결과입니다.", "검증된 최신 평가 보고서입니다.")
+        refined = base_text.replace(
+            "KV cache 최적화의 SW·HW 접근 비교.",
+            "KV cache 최적화의 소프트웨어·하드웨어 접근을 비교합니다.",
+        )
         return json.dumps({"report": refined})
 
     mock_model = DummyReportModel(handler)
 
+    class Judge:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"supported": True})
+
     class Provider:
         report_model = mock_model
+        validation_model = Judge()
 
     res = report.run(state, Provider())
     assert "report" in res
-    assert "검증된 최신 평가 보고서입니다." in res["report"]
+    assert "소프트웨어·하드웨어 접근을 비교합니다." in res["report"]
 
 
 def test_report_llm_rejects_altered_headings_or_citations():
@@ -83,8 +91,13 @@ def test_report_llm_rejects_altered_headings_or_citations():
 
     mock_model = DummyReportModel(handler)
 
+    class Judge:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"supported": True})
+
     class Provider:
         report_model = mock_model
+        validation_model = Judge()
 
     with pytest.raises(ModelOutputError, match="검증된 목차·인용·참고문헌"):
         report.run(state, Provider())
@@ -113,9 +126,13 @@ def _get_openai_key():
     return os.getenv("OPENAI_API_KEY") or read_environment().get("OPENAI_API_KEY") or ""
 
 
-@pytest.mark.skipif(not _get_openai_key(), reason="OPENAI_API_KEY가 설정되어 있어야 합니다.")
+@pytest.mark.skipif(
+    os.getenv("RUN_LIVE_LLM_TESTS") != "1", reason="실 API 테스트는 명시적으로 켜야 합니다."
+)
 def test_report_llm_openai_real_api_call():
     state = _make_state()
+    if not _get_openai_key():
+        pytest.skip("OPENAI_API_KEY가 필요합니다.")
     settings = ModelSettings(openai_api_key=_get_openai_key())
     router = ModelRouter(settings)
 

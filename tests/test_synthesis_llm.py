@@ -4,7 +4,6 @@ import os
 import pytest
 
 from skala_agent.agents import synthesis
-from skala_agent.integrations.contracts import ModelOutputError
 from skala_agent.model_config import ModelRouter, ModelSettings, read_environment
 from skala_agent.schemas import Assessment, Evidence
 
@@ -84,7 +83,7 @@ def test_synthesis_llm_valid_output():
             {
                 "technology_id": "turboquant",
                 "question": "resource_cost",
-                "summary": "메모리 절감 대비 CPU 오버헤드 trade-off",
+                "summary": "메모리 사용량 20% 감소",
                 "assessment_refs": [["trl", "turboquant"]],
                 "evidence_ids": ["ev_tq_1"],
             }
@@ -92,13 +91,18 @@ def test_synthesis_llm_valid_output():
     }
     mock_model = DummySynthesisModel(json.dumps(llm_payload))
 
+    class Judge:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"supported": True})
+
     class Provider:
         synthesis_model = mock_model
+        validation_model = Judge()
 
     res = synthesis.run(state, Provider())
     assert "synthesis_findings" in res
     findings = res["synthesis_findings"]
-    assert any(f.summary == "메모리 절감 대비 CPU 오버헤드 trade-off" for f in findings)
+    assert any(f.summary == "메모리 사용량 20% 감소" for f in findings)
 
 
 def test_synthesis_llm_rejects_unverified_evidence_id():
@@ -117,14 +121,19 @@ def test_synthesis_llm_rejects_unverified_evidence_id():
     }
     mock_model = DummySynthesisModel(json.dumps(llm_payload))
 
+    class Judge:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"supported": True})
+
     class Provider:
         synthesis_model = mock_model
+        validation_model = Judge()
 
-    with pytest.raises(ModelOutputError, match="검증되지 않았거나"):
-        synthesis.run(state, Provider())
+    result = synthesis.run(state, Provider())
+    assert not any(f.summary == "허위 근거 기반 주장" for f in result["synthesis_findings"])
 
 
-def test_synthesis_llm_prompt_injection_safety():
+def test_synthesis_llm_keeps_untrusted_content_in_user_payload():
     state = _make_state()
     # evidence claim에 prompt injection 시도 문구 삽입
     state["evidence"][0] = state["evidence"][0].model_copy(
@@ -144,8 +153,13 @@ def test_synthesis_llm_prompt_injection_safety():
     }
     mock_model = DummySynthesisModel(json.dumps(llm_payload))
 
+    class Judge:
+        def invoke_structured(self, messages, schema):
+            return json.dumps({"supported": True})
+
     class Provider:
         synthesis_model = mock_model
+        validation_model = Judge()
 
     _ = synthesis.run(state, Provider())
     assert len(mock_model.calls) == 1
@@ -159,9 +173,13 @@ def _get_openai_key():
     return os.getenv("OPENAI_API_KEY") or read_environment().get("OPENAI_API_KEY") or ""
 
 
-@pytest.mark.skipif(not _get_openai_key(), reason="OPENAI_API_KEY가 설정되어 있어야 합니다.")
+@pytest.mark.skipif(
+    os.getenv("RUN_LIVE_LLM_TESTS") != "1", reason="실 API 테스트는 명시적으로 켜야 합니다."
+)
 def test_synthesis_llm_openai_real_api_call():
     state = _make_state()
+    if not _get_openai_key():
+        pytest.skip("OPENAI_API_KEY가 필요합니다.")
     settings = ModelSettings(openai_api_key=_get_openai_key())
     router = ModelRouter(settings)
 
