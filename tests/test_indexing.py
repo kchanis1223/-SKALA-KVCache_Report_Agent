@@ -69,3 +69,27 @@ def test_cli_defaults_point_at_bge_m3():
     assert args.model == "BAAI/bge-m3"
     assert args.tokenizer == "BAAI/bge-m3"
     assert args.index_dir.endswith("bge-m3")
+
+
+def test_bge_embedder_defaults_avoid_silent_truncation():
+    """FlagEmbedding 기본 max_length(512)를 쓰면 1500 토큰 청크가 잘립니다."""
+    from skala_agent.retrieval.config import DEFAULT_CHUNKING
+    from skala_agent.retrieval.embedding import BgeM3Embedder
+
+    embedder = BgeM3Embedder()
+    assert embedder.max_length >= DEFAULT_CHUNKING.chunk_size_tokens
+    assert embedder.model_name == "BAAI/bge-m3"
+
+
+def test_bge_embedder_rejects_invalid_max_length():
+    from skala_agent.retrieval.embedding import BgeM3Embedder
+
+    with pytest.raises(ValueError):
+        BgeM3Embedder(max_length=0)
+
+
+def test_bge_embedder_returns_empty_without_loading_model():
+    """빈 입력은 모델을 로딩하지 않고 바로 반환합니다."""
+    from skala_agent.retrieval.embedding import BgeM3Embedder
+
+    assert BgeM3Embedder().encode([]) == []

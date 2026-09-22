@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from skala_agent.retrieval.interfaces import Embedder
 
-__all__ = ["Embedder", "BgeM3Embedder"]
+__all__ = ["Embedder", "BgeM3Embedder", "BGE_M3_MAX_LENGTH"]
+
+# bge-m3가 지원하는 최대 컨텍스트. FlagEmbedding 기본값(passage_max_length=512)을 쓰면
+# 1500 토큰 청크가 말없이 잘리므로 반드시 명시해서 넘깁니다.
+BGE_M3_MAX_LENGTH = 8192
 
 
 class BgeM3Embedder:
@@ -17,8 +21,19 @@ class BgeM3Embedder:
     본문 색인과 질의는 같은 모델·같은 정규화를 써야 하므로 한 인스턴스를 공유하세요.
     """
 
-    def __init__(self, model_name: str = "BAAI/bge-m3", *, use_fp16: bool = False) -> None:
+    def __init__(
+        self,
+        model_name: str = "BAAI/bge-m3",
+        *,
+        use_fp16: bool = False,
+        max_length: int = BGE_M3_MAX_LENGTH,
+        batch_size: int = 8,
+    ) -> None:
+        if max_length < 1:
+            raise ValueError("max_length는 1 이상이어야 합니다.")
         self.model_name = model_name
+        self.max_length = max_length
+        self.batch_size = batch_size
         self._use_fp16 = use_fp16
         self._model = None
 
@@ -38,5 +53,12 @@ class BgeM3Embedder:
     def encode(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        output = self._load().encode(texts, return_dense=True, return_sparse=False)
+        output = self._load().encode(
+            texts,
+            batch_size=self.batch_size,
+            max_length=self.max_length,
+            return_dense=True,
+            return_sparse=False,
+            return_colbert_vecs=False,
+        )
         return [vector.tolist() for vector in output["dense_vecs"]]
