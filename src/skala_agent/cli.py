@@ -2,6 +2,7 @@ import argparse
 import logging
 from pathlib import Path
 
+from skala_agent.estimate import format_estimate
 from skala_agent.runtime import (
     DEFAULT_TIMEOUT_SECONDS,
     MODES,
@@ -27,6 +28,16 @@ def main():
         help="외부 서비스 호출 1건의 상한(초). 0이면 상한 없음",
     )
     parser.add_argument(
+        "--graph",
+        action="store_true",
+        help="컴파일된 그래프를 mermaid로 출력하고 종료",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="외부 호출 없이 예상 호출 횟수만 출력하고 종료",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="단계별 진행 상황과 소요 시간을 출력",
@@ -38,6 +49,14 @@ def main():
         format="%(asctime)s  %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    if args.graph:
+        print(build_graph().get_graph().draw_mermaid().strip())
+        return
+
+    if args.dry_run:
+        print(format_estimate(args.timeout))
+        return
 
     try:
         provider = load_provider(args.mode, timeout=args.timeout)
