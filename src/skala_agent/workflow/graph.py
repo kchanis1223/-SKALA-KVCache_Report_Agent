@@ -13,7 +13,7 @@ from skala_agent.agents import (
     validation,
 )
 from skala_agent.providers import DemoProvider, Provider
-from skala_agent.schemas import PERSPECTIVES, Assessment, Evidence, Technology
+from skala_agent.schemas import PERSPECTIVES, AgentError, Assessment, Evidence, Technology
 from skala_agent.workflow.state import EvaluationState
 
 AGENTS = {"trl": trl, "market": market, "stakeholder": stakeholder, "domain": domain}
@@ -44,7 +44,24 @@ def build_graph(provider: Provider | None = None):
 
     def evaluate(payload):
         key, state = payload["perspective"], payload["state"]
-        assessments, evidence = AGENTS[key].run(state, provider)
+        try:
+            assessments, evidence = AGENTS[key].run(state, provider)
+        except (TimeoutError, ConnectionError) as exc:
+            # Adapter는 외부 서비스 오류를 아래 표준 예외로 변환합니다.
+            # 구조화 출력 오류나 프로그래밍 오류는 숨기지 않습니다.
+            error = AgentError(code=type(exc).__name__, message="외부 서비스 요청 실패")
+            assessments = [
+                Assessment(
+                    technology_id=t.id,
+                    perspective=key,
+                    verdict="판단 보류",
+                    rationale=error.message,
+                    status="failed",
+                    error=error,
+                )
+                for t in state["selected_technologies"]
+            ]
+            evidence = []
         assessments = [Assessment.model_validate(a) for a in assessments]
         evidence = [Evidence.model_validate(e) for e in evidence]
         expected = {t.id for t in state["selected_technologies"]}
@@ -60,7 +77,7 @@ def build_graph(provider: Provider | None = None):
         targets = (
             PERSPECTIVES
             if state["retry_count"] == 0
-            else sorted({m.perspective for m in state["missing_evidence"]})
+            else sorted({m.perspective for m in state["missing_evidence"] if m.retryable})
         )
         return [Send("evaluate", {"perspective": key, "state": state}) for key in targets]
 
@@ -77,7 +94,8 @@ def build_graph(provider: Provider | None = None):
         "validate",
         lambda state: (
             "additional_search"
-            if state["missing_evidence"] and state["retry_count"] < MAX_RETRIES
+            if any(m.retryable for m in state["missing_evidence"])
+            and state["retry_count"] < MAX_RETRIES
             else "report"
         ),
         ["additional_search", "report"],

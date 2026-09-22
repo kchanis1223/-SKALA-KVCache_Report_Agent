@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Literal, Protocol
 
-from skala_agent.schemas import Chunk
+from skala_agent.schemas import Chunk, RetrievalResult
 
 
 class PDFParser(Protocol):
@@ -28,7 +28,7 @@ class VectorStore(Protocol):
         top_k: int = 3,
         role: Literal["primary", "reference"] | None = None,
         paper_id: str | None = None,
-    ) -> list[Chunk]: ...
+    ) -> list[RetrievalResult]: ...
 
 
 class Retriever(Protocol):
@@ -38,4 +38,5 @@ class Retriever(Protocol):
         *,
         top_k: int = 3,
         role: Literal["primary", "reference"] | None = None,
-    ) -> list[Chunk]: ...
+        paper_id: str | None = None,
+    ) -> list[RetrievalResult]: ...

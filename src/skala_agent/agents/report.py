@@ -32,7 +32,8 @@ def run(state):
         sources = valid_sources(item, state["evidence"])
         label = f"{item.technology_id} / {item.perspective}"
         if item.status != "assessed" or not sources:
-            lines.append(f"- {label}: 판단 보류 (검증된 근거 부족)")
+            reason = f"평가 실패: {item.error.code}" if item.error else "검증된 근거 부족"
+            lines.append(f"- {label}: 판단 보류 ({reason})")
             continue
         used.update(sources)
         refs = " ".join(f"[{e.title}]({url})" for url, e in sources.items())

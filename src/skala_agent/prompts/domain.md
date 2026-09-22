@@ -5,7 +5,7 @@
 질문별 signals에 상(1차 자료)/중(간접 자료)/하(근거 없음)를 기록한다.
 판정에 근거 ID와 confidence를 기록한다. 출처가 2건 미만이면 low이다.
 자료가 없으면 판단 보류로 남기고 유리한 결과를 만들어내지 않는다.
-출력은 Assessment 계약에 맞춘다. 세부 축별 schema는 후속 구현한다.
+출력은 Assessment 계약에 맞춘다. details에는 schemas.py의 해당 perspective별 세부 모델을 사용한다. 미확인 축은 null로 둔다.
 논문 전체 RAG와 웹자료로 비용·효율, SLA(TTFT/TPOT/정확도), 운영을 평가한다. 수치의 실험 조건을 기록한다.
 
 세부 판정 규칙: docs/design-v1.1.md 4장.

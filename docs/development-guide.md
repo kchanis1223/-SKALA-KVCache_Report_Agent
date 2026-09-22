@@ -17,10 +17,10 @@ make test
 
 먼저 `schemas.py`, `providers.py`, `workflow/state.py`, `docs/interfaces.md`를 함께 읽습니다. 아래 파일 경로는 별도 표기가 없으면 `src/skala_agent/` 기준입니다.
 
-착수 회의에서 다음을 결정하고 PR에 남깁니다.
+공통 데이터 계약은 [interfaces.md](interfaces.md)에 정리했습니다. 서비스·구현 설정은 다음 담당자가 결정하고 PR에 남깁니다.
 
-- 김동찬: VectorDB 제품, 토큰 단위 청킹 기준, 원문 확보·보관 방법.
-- 김강휘: LLM·웹검색 서비스, 관점별 세부 출력 schema, 실행당 비용 한도.
+- 김동찬: VectorDB 제품, 확정 청킹 기준 적용, 원문 확보·보관 방법.
+- 김강휘: LLM·웹검색 서비스, 확정 출력 schema 적용, 실행당 비용 한도.
 - 윤소영: 실행 설정과 provider 주입 방식, 타임아웃·실패 처리.
 - 이준형: 근거 검증 통과 조건, 인용 형식, 최종 보고서 형식.
 
@@ -47,7 +47,7 @@ make test
 
 **시작 파일:** `agents/trl.py`, `market.py`, `stakeholder.py`, `domain.py`, `prompts/*.md`, `providers.py`, `schemas.py`의 `Assessment`, `Signal`, `Evidence`.
 
-1. 공통 Assessment 아래 TRL 1~9, 시장성 3축, 이해관계자 5주체, 도메인 A/B/C를 표현할 세부 schema를 먼저 정의합니다.
+1. 확정된 Assessment.details의 TRLDetails, MarketDetails, StakeholderDetails, DomainDetails를 적용합니다. 세부 평가 질문과 집계 로직을 구현합니다.
 2. 설계서 4장의 판정 규칙을 프롬프트와 검증 코드에 반영합니다. 현재 프롬프트 파일은 자동 로딩되지 않으므로 실제 provider에서 읽어 적용합니다.
 3. 실제 Provider 구현을 별도 모듈에 추가합니다. `research()`는 김동찬의 primary 검색으로 개요·한계·실험 조건을 추출합니다.
 4. `assess()`에서 TRL·시장성·이해관계자는 웹검색, 도메인은 전체 논문 RAG와 웹검색을 사용합니다. 각 호출은 선택된 기술별 Assessment 하나씩과 새 Evidence를 반환합니다.
@@ -58,7 +58,7 @@ make test
 
 **완료 기준:** 두 기술 모두 schema를 만족하고 출처와 질문별 signals가 연결됩니다. 자료 없음은 판단 보류, 두 출처 미만은 low이며, 서로 다른 평가 축을 단일 우열로 뭉개지 않습니다.
 
-**권장 첫 PR:** `feat/agents-schema` — 세부 schema와 TRL 한 관점의 fixture 기반 평가부터.
+**권장 첫 PR:** `feat/agents-schema` — 확정 schema를 사용하는 TRL 한 관점의 fixture 기반 평가부터.
 
 ## 윤소영 — 결과를 하나의 실행으로 연결하기
 
@@ -66,7 +66,7 @@ make test
 
 1. 기존 demo와 테스트로 fan-out/fan-in, 선택적 retry, 재시도 상한 2회를 확인합니다.
 2. 김강휘의 provider를 `build_graph(provider)`에 주입합니다. CLI에 demo/실제 실행 모드와 설정을 추가하되 기본 demo는 API 키 없이 동작하게 유지합니다.
-3. 공유 schema 변경을 State에 반영합니다. 병렬 노드는 변경분만 반환하고, `analyses`는 관점별 교체, `evidence`는 누적 규칙을 유지합니다.
+3. 공유 schema 변경을 State에 반영합니다. 병렬 노드는 변경분만 반환하고, `analyses`는 관점별 교체, `evidence`는 같은 ID의 최신 값으로 갱신하는 규칙을 유지합니다.
 4. 추가 검색 결과를 부족 관점에 전달하고 정상 관점의 결과가 보존되는지 확인합니다.
 5. 외부 서비스 오류·타임아웃과 실행 로그를 구현합니다. 필요한 경우 checkpoint를 추가합니다.
 6. 실제 provider를 통합한 실행 경로와 mock 실행 경로를 분리해 CI에서는 비용이 발생하지 않도록 합니다.
@@ -123,3 +123,5 @@ git push -u origin feat/담당기능
 ```
 
 GitHub에서 `main` 대상으로 PR을 만듭니다. 변경 목적·입출력 예제·검증 명령을 적고, 공유 계약 변경 시 연관 담당자에게 검토를 요청합니다. API 키, PDF, 벡터 인덱스와 생성 보고서는 커밋하지 않습니다.
+
+이슈 #1 반영: 청킹 기본값은 `retrieval/config.py`, 안정적 Evidence ID는 `evidence.py`, 점수 반환은 `RetrievalResult`, 실패는 `Assessment.status=failed`를 사용합니다.
