@@ -6,8 +6,8 @@ run:
 test:
 	uv run pytest
 lint:
-	uv run ruff check src tests
-	uv run ruff format --check src tests
+	uv run ruff check src tests app.py
+	uv run ruff format --check src tests app.py
 format:
-	uv run ruff check --fix src tests
-	uv run ruff format src tests
+	uv run ruff check --fix src tests app.py
+	uv run ruff format src tests app.py

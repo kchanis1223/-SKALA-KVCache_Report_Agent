@@ -113,3 +113,7 @@ validator는 signals의 조사 질문을 우선 사용해 기술·관점이 포�
 `tests/fixtures/contracts.json`에 chunk, 점수 포함 검색 결과, evidence, tech_analysis, 정상 Assessment, pending Assessment, failed Assessment, MissingEvidence가 있습니다. 모두 실제 논문과 무관한 합성 데이터입니다. `make test`는 JSON round-trip, ID 중복 교체·철회, 관점별 실패·복구, 검색 점수 및 청킹 설정을 검사합니다.
 
 기존 provider 수정 사항: tech_analysis 문자열 → TechAnalysis, 검색 Chunk 목록 → RetrievalResult 목록, MissingEvidence 생성 시 kind/claim/queries 지정. 기존 rationale/excerpt 이름은 유지됩니다. 상세 schema와 설명은 이 문서를 기준으로 개발하고, 과거 설계서의 operator.add 및 별도 *_analysis 키는 참고 이력으로만 봅니다.
+
+## 공통 모델 배정
+
+`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search는 4B, trl/market/stakeholder/domain/validation/synthesis/report는 8B입니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
