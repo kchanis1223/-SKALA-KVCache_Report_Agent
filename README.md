@@ -38,6 +38,13 @@ uv run skala-agent --mode real    # 실제 검색·LLM provider 연결
 uv run skala-agent --mode real --timeout 60
 ```
 
+`--verbose`를 붙이면 단계별 진행 상황과 소요 시간을 출력합니다. 기본 실행은 경고
+이상만 남깁니다.
+
+```bash
+uv run skala-agent --verbose
+```
+
 ## 구성
 
 ```text
