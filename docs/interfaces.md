@@ -103,6 +103,21 @@ validator는 signals의 조사 질문을 우선 사용해 기술·관점이 포�
 
 재검색은 최대 2회입니다. 성공한 관점은 보존하고, 미해결·실패 관점은 판단 보류 및 6장 한계점에 표시합니다. malformed output / ValueError 등 계약·프로그래밍 오류는 숨기지 않고 실행을 중단합니다. 공통 기술 조사·추가 검색 자체의 서비스 오류 처리, 네트워크 backoff, checkpoint는 #10의 후속 범위입니다.
 
+## 실행 모드와 provider 주입
+
+`build_graph(provider)`에 주입할 provider는 `skala_agent.runtime.load_provider(mode, timeout=...)`가 고릅니다.
+
+| mode | provider | 외부 호출 |
+| --- | --- | --- |
+| `demo` (기본) | `DemoProvider` | 없음. API 키·모델 다운로드 불필요 |
+| `real` | `skala_agent.adapters.build_provider()` | 있음 |
+
+`real`인데 adapter가 없으면 `demo`로 되돌아가지 않고 `ProviderUnavailableError`로 종료합니다. adapter 구현체는 `Provider` 프로토콜을 만족하는 객체를 인자 없이 반환해야 합니다.
+
+`timeout`(CLI `--timeout`, 기본 120초)을 주면 provider를 `TimeoutProvider`로 감쌉니다. 호출 1건이 상한을 넘으면 `TimeoutError`가 되어 해당 관점만 `failed`로 남습니다. 파이썬은 실행 중인 스레드를 취소할 수 없으므로, 호출을 실제로 중단하려면 adapter가 HTTP 요청 수준의 타임아웃을 함께 걸어야 합니다. 한 관점에서 상한을 넘긴 호출이 2건 쌓이면 그 관점의 남은 재평가는 기다리지 않고 즉시 실패시킵니다.
+
+CLI는 `--graph`(컴파일된 그래프를 mermaid로 출력), `--dry-run`(외부 호출 없이 예상 호출 횟수), `--verbose`(단계별 진행 로그)를 제공합니다.
+
 ## 공동 fixture와 검증
 
 `tests/fixtures/contracts.json`에 chunk, 점수 포함 검색 결과, evidence, tech_analysis, 정상 Assessment, pending Assessment, failed Assessment, MissingEvidence가 있습니다. 모두 실제 논문과 무관한 합성 데이터입니다. `make test`는 JSON round-trip, ID 중복 교체·철회, 관점별 실패·복구, 검색 점수 및 청킹 설정을 검사합니다.

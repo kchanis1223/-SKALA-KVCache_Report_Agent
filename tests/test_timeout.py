@@ -51,3 +51,19 @@ def test_slow_perspective_fails_alone_and_report_is_still_produced():
     assert others and all(a.status == "pending" for a in others)
 
     assert "TimeoutError" in result["report"]
+
+
+def test_stuck_perspective_is_skipped_after_repeated_timeouts():
+    """응답하지 않는 관점에 상한 시간을 반복해서 버리지 않습니다."""
+    provider = TimeoutProvider(SlowProvider(), 0.3, max_abandoned=2)
+    start = time.monotonic()
+    result = build_graph(provider).invoke(initial_state())
+    elapsed = time.monotonic() - start
+
+    # domain 은 0.3초 × 2회만 기다리고, 3회차는 즉시 실패합니다.
+    assert provider.abandoned["domain"] == 2
+    assert elapsed < 0.3 * 3
+
+    # 나머지 관점은 차단되지 않습니다.
+    assert all(provider.abandoned[key] == 0 for key in ("trl", "market", "stakeholder"))
+    assert result["report"]

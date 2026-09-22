@@ -21,30 +21,6 @@ make lint
 uv run skala-agent --output outputs/my-report.md
 ```
 
-실행 모드는 `--mode`로 구분합니다. 기본값 `demo`는 API 키 없이 동작하고, `real`은
-실제 provider(`skala_agent.adapters.build_provider()`)를 불러옵니다. adapter가 아직
-없으면 demo로 되돌아가지 않고 안내 메시지와 함께 종료합니다.
-
-```bash
-uv run skala-agent --mode demo    # 기본값. 외부 호출 없음
-uv run skala-agent --mode real    # 실제 검색·LLM provider 연결
-```
-
-`--timeout`(기본 120초)은 외부 서비스 호출 1건의 상한입니다. 상한을 넘긴 관점은
-`판단 보류`로 남고 나머지 관점은 그대로 진행하므로, 느린 서비스 하나가 전체 실행을
-멈추지 않습니다. `--timeout 0`이면 상한을 걸지 않습니다.
-
-```bash
-uv run skala-agent --mode real --timeout 60
-```
-
-`--verbose`를 붙이면 단계별 진행 상황과 소요 시간을 출력합니다. 기본 실행은 경고
-이상만 남깁니다.
-
-```bash
-uv run skala-agent --verbose
-```
-
 ## 구성
 
 ```text
