@@ -106,21 +106,21 @@ ITME
 
 ## Agent Model Strategy
 
-단순 추출·분류에는 로컬 경량 모델을 사용하고, 복잡한 종합 추론에는 더 강한 모델을 배치했습니다.
+아홉 Agent 모두 같은 모델(GPT-5.4 mini)을 사용하고, 역할별로 **추론 강도(reasoning effort)** 만 다르게 배치했습니다.
 
-| Agent             | Model             | 이유                             |
-| ----------------- | ----------------- | ------------------------------ |
-| Research          | Qwen3-4B / Ollama | RAG 결과 구조화·정보 추출               |
-| TRL               | Qwen3-4B / Ollama | 명시된 TRL 기준에 근거 매핑              |
-| Market            | Qwen3-4B / Ollama | 검색 결과를 평가축에 분류                 |
-| Stakeholder       | Qwen3-4B / Ollama | 주체별 입장 구조화                     |
-| Domain            | Qwen3-4B / Ollama | 정해진 비용·SLA·운영 기준 평가            |
-| Additional Search | Qwen3-4B / Ollama | 검색 질의 생성 및 결과 전달               |
-| **Synthesis**     | **GPT-5.6 Sol**   | 관점 간 상충·trade-off를 종합하는 고난도 추론 |
-| Validation        | GPT-5.6 Terra     | 주장과 Evidence 대응 관계 검증          |
-| Report            | GPT-5.6 Terra     | 검증된 결과의 장문 보고서 구조화             |
+| Agent             | Model        | Effort | 이유                             |
+| ----------------- | ------------ | ------ | ------------------------------ |
+| Research          | GPT-5.4 mini | low    | RAG 결과 구조화·정보 추출               |
+| Additional Search | GPT-5.4 mini | low    | 부족 근거 재검색 결과 전달 (LLM 질의 재작성 미적용) |
+| TRL               | GPT-5.4 mini | medium | 명시된 TRL 기준에 근거 매핑              |
+| Market            | GPT-5.4 mini | medium | 검색 결과를 평가축에 분류                 |
+| Stakeholder       | GPT-5.4 mini | medium | 주체별 입장 구조화                     |
+| Domain            | GPT-5.4 mini | medium | 정해진 비용·SLA·운영 기준 평가            |
+| **Synthesis**     | GPT-5.4 mini | **high**   | 관점 간 상충·trade-off를 종합하는 고난도 추론 |
+| Validation        | GPT-5.4 mini | low    | 주장과 Evidence 대응 관계 검증          |
+| Report            | GPT-5.4 mini | medium | 검증된 결과의 장문 보고서 구조화             |
 
-> 반복 호출이 많은 조사·평가 단계는 로컬 모델로 비용과 외부 의존성을 줄이고, 복합 추론이 필요한 단계에만 상위 모델을 집중 배치했습니다.
+> 모델을 하나로 통일해 배포·비용 구조를 단순화했습니다. 원격 API 호출은 로컬 GPU 메모리를 공유하지 않으므로 관점 fan-out이 실제로 병렬 실행됩니다. 로컬 Ollama 경로는 오프라인 재현·비교 실행용으로 남겨두었고 `LLM_PROVIDER=ollama`로 전환합니다. 모델 ID는 `OPENAI_MODEL` 환경변수로 덮어쓸 수 있습니다.
 
 ---
 

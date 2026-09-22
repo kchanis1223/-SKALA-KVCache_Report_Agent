@@ -23,8 +23,8 @@ def test_cli_reads_env_and_exports_two_technology_results(
     monkeypatch, tmp_path, perspective, count
 ):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / ".env").write_text("USE_SINGLE_MODEL=true\nTAVILY_API_KEY=fixture\n")
-    for key in ("USE_SINGLE_MODEL", "TAVILY_API_KEY"):
+    (tmp_path / ".env").write_text("TAVILY_API_KEY=fixture\nOPENAI_API_KEY=fixture-key\n")
+    for key in ("TAVILY_API_KEY", "OPENAI_API_KEY"):
         monkeypatch.delenv(key, raising=False)
 
     class Search:
@@ -46,4 +46,6 @@ def test_cli_reads_env_and_exports_two_technology_results(
     assert len(assessments) == count
     assert all(a.status == "pending" for a in assessments)
     assert result["evidence"] == []
-    assert set(result["models"].values()) == {"qwen3:4b"}
+    from skala_agent.model_config import DEFAULT_OPENAI_MODEL
+
+    assert set(result["models"].values()) == {DEFAULT_OPENAI_MODEL}
