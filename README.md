@@ -2,118 +2,241 @@
 
 ## Subject
 
-본 프로젝트는 KV cache 최적화 기술을 소프트웨어와 하드웨어 두 진영에서 선정해,
-시장·이해관계자·도메인 관점에서 평가하는 Agentic RAG를 개발하는 프로젝트입니다.
-장문 LLM 추론에서 커지는 KV cache 메모리 병목에 대해, 서로 다른 최적화 경로의
-도입 조건과 trade-off를 근거 기반으로 비교합니다.
+장문 LLM 추론에서 KV cache는 context length 증가에 따라 GPU HBM을 빠르게 소모합니다.
 
-LLM은 이전 토큰의 Key-Value를 재사용해 연산을 줄이지만, 문맥 길이에 비례해 KV cache가
-증가하면서 GPU HBM 용량을 빠르게 소진할 수 있습니다. 본 프로젝트는 이 연산 절감과 메모리
-제약의 상충을 데이터센터·클라우드 서빙 환경에서 다룹니다.
+본 프로젝트는 이 메모리 병목을 해결하는 두 가지 상반된 접근을 선정하고, **데이터센터·클라우드 서빙 환경에서 기술 성숙도·시장성·이해관계자·도메인 적용성을 근거 기반으로 비교 평가하는 Agentic RAG 시스템**을 구현합니다.
+
+* **SW:** TurboQuant — KV cache 자체를 압축
+* **HW:** ITME — 메모리 계층을 확장
+
+목표는 특정 기술의 우열을 결정하는 것이 아니라, **각 접근의 적용 조건과 trade-off를 명확하게 드러내는 것**입니다.
+
+---
 
 ## Overview
 
-- Objective: 하나의 기술을 복수 관점에서 비교 평가하고 기술 도입 판단을 지원
-- Method: Multi-Agent(Distributed) + Agentic RAG
-- Tools: LangGraph, Ollama, Tavily, BAAI/bge-m3
+* **Objective:** KV cache 최적화 기술을 복수 관점에서 중립적으로 비교 평가
+* **Domain:** 데이터센터 · 클라우드 LLM Serving
+* **Method:** Multi-Agent + Agentic RAG
+* **Framework:** LangGraph
+* **Local LLM:** Qwen3-4B / Ollama
+* **Web Search:** Tavily
+* **Embedding:** BAAI/bge-m3
+
+### 핵심 Workflow
+
+```text
+기술 원문 조사
+      ↓
+┌─────┬─────┬─────┬─────┐
+TRL   시장성  이해관계자  도메인
+└─────┴─────┴─────┴─────┘
+      ↓
+   관점 종합
+      ↓
+   근거 검증
+   ↙       ↘
+부족        충분
+ ↓           ↓
+재검색      보고서 생성
+ ↓
+해당 Agent 재평가
+```
+
+---
 
 ## Selected Technologies
 
-- SW: TurboQuant — KV cache 양자화·압축으로 저장량을 줄이는 소프트웨어 대표 사례
-- HW: ITME — 계층형 메모리 확장으로 수용량을 높이는 하드웨어 대표 사례
+| 구분 | 기술             | 접근                            |
+| -- | -------------- | ----------------------------- |
+| SW | **TurboQuant** | KV cache를 저비트 양자화해 저장량 감소     |
+| HW | **ITME**       | CXL 기반 계층형 메모리 확장으로 KV 수용량 증가 |
 
-두 기술은 같은 KV cache 병목을 다루지만, 모델 품질·지연 시간·인프라 비용·도입 주체의
-trade-off가 달라 동일한 평가 프레임에서 비교합니다.
+두 기술은 동일한 KV cache 병목을 해결하지만 접근이 정반대입니다.
 
-비교 대상은 에이전트가 임의로 고르지 않고 사람이 선정했습니다. 접근의 대립성, 적용 전제의
-비대칭, 검증 주기 차이를 먼저 명시해 선정 과정의 재현성을 확보하고, 선정 이후의 다층 비교에
-분석의 초점을 둡니다.
+```text
+TurboQuant
+→ 데이터를 작게 만든다
+→ 정확도 / 압축률 trade-off
 
-## Features
+ITME
+→ 저장 공간을 넓힌다
+→ 성능 / 인프라 비용 trade-off
+```
 
-- PDF 자료 기반 정보 추출과 기술별 근거 관리
-- TRL·시장성·이해관계자·도메인 관점의 병렬 평가
-- 부족한 근거의 선택적 재검색과 최대 2회 retry
-- Evidence ID·기술 ID·URL·지지 여부를 확인하는 인용 검증
-- 확증 편향 방지: URL 존재나 검색 성공만으로 주장을 확정하지 않고, 근거 연결과 지지 여부를 검증
-- 결론뿐 아니라 주장별 근거·인용·반대 trade-off를 함께 제시해 기술 도입 판단을 지원
-- 검증 가능한 출처가 부족하면 결론을 꾸며내지 않고 `판단 보류`와 한계점으로 기록
-- 한국어 질의와 영어 논문 원문 사이의 검색을 고려한 cross-lingual RAG 구성
+비교 대상은 Agent가 아닌 **Human 기반으로 선정**했습니다.
+접근의 대립성, 적용 전제, 검증 주기의 차이를 기준으로 선정하여 이후 다관점 평가에 분석의 초점을 맞췄습니다.
 
-## Tech Stack
+---
 
-- Framework: LangGraph
-- Retrieval: numpy VectorStore, Retriever — Hit@1, Hit@3, MRR
-- Embedding: BAAI/bge-m3 — 한국어 질의와 영어 기술 문서 검색을 고려한 다국어 임베딩
+## Key Features
 
-설계서 기준의 Agent별 모델 배정은 다음과 같습니다.
+* 논문 PDF 기반 **RAG 기술 조사**
+* TRL·시장성·이해관계자·도메인 **4개 관점 병렬 평가**
+* 각 주장과 출처를 연결하는 **Evidence 관리**
+* 근거 부족 시 해당 항목만 **선택적 재검색**
+* 재검색 후 관련 평가 Agent를 다시 실행하는 **Retry Loop**
+* 관점 간 일치점뿐 아니라 **상충점과 Trade-off 탐지**
+* 근거가 부족한 경우 결론을 생성하지 않고 **판단 보류**
+* 한국어 질의 → 영어 논문 검색을 위한 **Cross-lingual Retrieval**
 
-| Agent | 적용 모델 | 선정 이유 |
-| --- | --- | --- |
-| Research | Qwen3-4B / Ollama | 논문 RAG 결과에서 기술 원리·수치·한계를 구조화해 추출 |
-| TRL | Qwen3-4B / Ollama | 정의된 TRL 1~9 기준에 근거를 매핑하는 규칙 기반 평가 |
-| Market | Qwen3-4B / Ollama | 시장 규모·채택·생태계 축에 웹 검색 결과를 분류·정리 |
-| Stakeholder | Qwen3-4B / Ollama | 이해관계자별 근거를 지지·유보·회의로 구조화 |
-| Domain | Qwen3-4B / Ollama | 비용·SLA·운영 기준과 RAG 근거를 사용한 적용성 평가 |
-| Synthesis | GPT-5.6 Sol | 네 관점의 일치·상충·trade-off를 해석하는 고난도 종합 추론 |
-| Validation | GPT-5.6 Terra | 주장과 Evidence의 대응·누락 여부 검증 |
-| Additional Search | Qwen3-4B / Ollama | 검색 질의 생성과 결과 전달 중심의 제한적 작업 |
-| Report | GPT-5.6 Terra | 검증된 State를 일관된 보고서 문장으로 구성 |
+### 차별점
+
+> **Agent의 첫 판단을 그대로 사용하지 않고, 근거를 검증한 뒤 부족한 관점만 다시 조사·평가한다.**
+
+---
 
 ## Agents
 
-- Research Agent: 선택 기술의 기술 개요·범위·한계·실험 조건 수집
-- TRL Agent: 기술 성숙도 평가
-- Market Agent: 시장 규모·채택·생태계 평가
-- Stakeholder Agent: GPU·메모리·클라우드·오픈소스·투자자 관점 평가
-- Domain Agent: 데이터센터·클라우드 서빙 적용성 평가
-- Synthesis Agent: 네 관점의 결과와 trade-off 종합
-- Validation Agent: Evidence 연결과 주장 지지 여부 검증
-- Report Agent: 검증된 판정과 인용으로 Markdown 보고서 생성
+| Agent                 | 역할                             |
+| --------------------- | ------------------------------ |
+| **Research**          | 논문에서 기술 원리·성능·한계·실험 조건 추출      |
+| **TRL**               | 공개 근거를 TRL 1~9 기준에 매핑          |
+| **Market**            | 시장 수요·채택·생태계 평가                |
+| **Stakeholder**       | GPU·메모리·클라우드·개발자·투자자 관점 분석     |
+| **Domain**            | 데이터센터의 비용·SLA·운영 적합성 평가        |
+| **Synthesis**         | 4개 관점의 공통점·상충점·trade-off 종합    |
+| **Validation**        | 주장과 Evidence의 대응 및 근거 부족 여부 검사 |
+| **Additional Search** | 부족한 근거만 추가 검색 후 재평가 대상으로 전달    |
+| **Report**            | 검증된 State를 기반으로 최종 평가 보고서 생성   |
 
-Synthesis·Validation·Report Agent는 새 검색이나 모델 호출 대신 누적된 State만 사용합니다.
-따라서 최종 결론은 앞 단계에서 수집·검증된 근거와 분리되지 않으며, 부족한 근거는 필요한
-관점에 한해 재검색 흐름으로 되돌립니다.
+---
+
+## Agent Model Strategy
+
+단순 추출·분류에는 로컬 경량 모델을 사용하고, 복잡한 종합 추론에는 더 강한 모델을 배치했습니다.
+
+| Agent             | Model             | 이유                             |
+| ----------------- | ----------------- | ------------------------------ |
+| Research          | Qwen3-4B / Ollama | RAG 결과 구조화·정보 추출               |
+| TRL               | Qwen3-4B / Ollama | 명시된 TRL 기준에 근거 매핑              |
+| Market            | Qwen3-4B / Ollama | 검색 결과를 평가축에 분류                 |
+| Stakeholder       | Qwen3-4B / Ollama | 주체별 입장 구조화                     |
+| Domain            | Qwen3-4B / Ollama | 정해진 비용·SLA·운영 기준 평가            |
+| Additional Search | Qwen3-4B / Ollama | 검색 질의 생성 및 결과 전달               |
+| **Synthesis**     | **GPT-5.6 Sol**   | 관점 간 상충·trade-off를 종합하는 고난도 추론 |
+| Validation        | GPT-5.6 Terra     | 주장과 Evidence 대응 관계 검증          |
+| Report            | GPT-5.6 Terra     | 검증된 결과의 장문 보고서 구조화             |
+
+> 반복 호출이 많은 조사·평가 단계는 로컬 모델로 비용과 외부 의존성을 줄이고, 복합 추론이 필요한 단계에만 상위 모델을 집중 배치했습니다.
+
+---
+
+## RAG
+
+### Documents
+
+* TurboQuant 원 논문
+* TurboQuant 독립 분석 자료
+* ITME 원 논문
+
+각 chunk에는 다음 metadata를 저장합니다.
+
+```text
+paper_id
+camp
+role
+section
+```
+
+### Embedding Selection
+
+후보:
+
+* BAAI/bge-m3
+* Qwen3-Embedding-0.6B
+* multilingual-e5-large
+* gte-multilingual-base
+
+50개 기술 질의로 직접 평가했습니다.
+
+| Model                 |   Hit@1 |   Hit@3 |        MRR |
+| --------------------- | ------: | ------: | ---------: |
+| **BGE-M3**            | **46%** | **74%** | **0.6127** |
+| Qwen3-Embedding-0.6B  |     38% |     68% |     0.5513 |
+| multilingual-e5-large |     32% |     58% |     0.5057 |
+| gte-multilingual-base |     32% |     56% |     0.4894 |
+
+따라서 **BGE-M3**를 최종 Embedding 모델로 선정했습니다.
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    START --> research[Research]
-    research --> dispatch{관점별 병렬 평가}
-    dispatch --> trl[TRL]
-    dispatch --> market[Market]
-    dispatch --> stakeholder[Stakeholder]
-    dispatch --> domain[Domain]
-    trl --> synthesis[Synthesis]
-    market --> synthesis
-    stakeholder --> synthesis
-    domain --> synthesis
-    synthesis --> validate{Validation}
-    validate -->|근거 충분 또는 retry 소진| report[Report]
-    validate -->|근거 부족| search[Additional search]
-    search --> dispatch
-    report --> END
+    S([START]) --> A[기술/도메인 입력]
+    A --> B[Research Agent · RAG]
+
+    B --> C[TRL Agent]
+    B --> D[Market Agent]
+    B --> E[Stakeholder Agent]
+    B --> F[Domain Agent · RAG]
+
+    C --> G[Synthesis Agent]
+    D --> G
+    E --> G
+    F --> G
+
+    G --> H{Validation Agent}
+
+    H -->|충분| J[Report Agent]
+    J --> Z([END])
+
+    H -->|부족 · retry < 2| I[Additional Search Agent]
+    I --> K{재평가 대상}
+
+    K --> C
+    K --> D
+    K --> E
+    K --> F
 ```
 
-핵심 흐름은 **병렬 평가 → 근거 검증 → 부족한 근거만 재검색 → 보고서 생성**입니다.
-따라서 에이전트의 첫 판단을 그대로 채택하지 않고, 검증 가능한 근거가 연결된 판단만 최종 보고서에 반영합니다.
+핵심은:
+
+> **병렬 평가 → 종합 → 근거 검증 → 부족한 관점만 재검색·재평가 → 보고서 생성**
+
+입니다.
+
+---
+
+## State Design
+
+Agent는 직접 결과를 주고받는 대신 공통 State를 통해 구조화된 데이터를 전달합니다.
+
+```text
+tech_analysis
+trl_analysis
+market_analysis
+stakeholder_analysis
+domain_analysis
+evidence
+missing_evidence
+synthesis
+report
+```
+
+관점별 State key를 분리해 병렬 실행 시 충돌을 방지하고, `evidence`는 Reducer를 통해 누적합니다.
+
+---
 
 ## Directory Structure
 
 ```text
 ├── data/                  # PDF·청크·벡터 문서 풀
 ├── src/skala_agent/
-│   ├── agents/            # Agent 모듈
-│   ├── prompts/           # 프롬프트 템플릿
-│   ├── retrieval/         # PDF 처리·임베딩·검색
-│   ├── workflow/          # LangGraph workflow
-│   ├── providers.py       # Provider 계약과 DemoProvider
-│   └── cli.py             # 실행 스크립트
-├── outputs/               # 평가 결과 저장
-├── tests/                 # 회귀 테스트
+│   ├── agents/            # Agent
+│   ├── prompts/           # Prompt
+│   ├── retrieval/         # PDF / Embedding / Retrieval
+│   ├── workflow/          # LangGraph
+│   ├── providers.py       # LLM / Search Provider
+│   └── cli.py             # 실행 Entry Point
+├── outputs/               # 최종 보고서
+├── tests/                 # 테스트
 └── README.md
 ```
+
+---
 
 ## Usage
 
@@ -124,9 +247,19 @@ make test
 make lint
 ```
 
+필요한 외부 API Key는 `.env`로 관리하며 Repository에는 포함하지 않습니다.
+
+로컬 Agent는 Ollama를 통해 실행합니다.
+
+---
+
 ## Contributors
 
-- 김동찬: PDF Parsing, Retrieval, Embedding, VectorStore
-- 김강휘: 평가 Agent, Prompt, 실제 provider
-- 윤소영: Workflow, State, retry·오류 처리
-- 이준형: Synthesis, Evidence Validation, Report/Citation, E2E 테스트·README
+* **김동찬** — PDF Parsing, Chunking, Embedding, VectorStore, Retrieval
+* **김강휘** — TRL·Market·Stakeholder·Domain Agent, Prompt, Structured Output
+* **윤소영** — State, LangGraph Workflow, Fan-out/Fan-in, Retry Routing
+* **이준형** — Synthesis, Evidence Validation, Report/Citation, E2E Test, README
+
+---
+
+이 네 개가 발표의 중심이고, `Directory Structure`, 세부 Usage 같은 건 **“구현도 되어 있다”는 증빙용으로 화면에만 보여주고 넘어가면 돼.**
