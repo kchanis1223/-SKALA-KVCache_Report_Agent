@@ -233,3 +233,23 @@ def test_provider_updates_supports_claim_without_changing_evidence_id():
     updated = provider.validate_evidence([evidence])
 
     assert updated == [evidence.model_copy(update={"supports_claim": True})]
+
+
+def test_evidence_claim_is_a_proposition_not_a_question():
+    """근거 claim은 검증 모델이 판정할 수 있는 서술형이어야 한다.
+
+    이전 형식은 "{기술}: {질문}? 응답=yes"였습니다. validate_evidence는 "발췌가
+    이 주장을 직접 지지하는가"를 묻는데 주장 자리에 물음표가 들어가 판정 대상이
+    성립하지 않았습니다. 실측(gpt-5.4-mini, trl 관점): 질문형 5/16건 통과 →
+    서술형 7/17건.
+    """
+    from skala_agent.agents.web_evaluation import _claim_text
+
+    yes = _claim_text("TurboQuant", "개념 검증 또는 소규모 PoC 결과가 있는가?", "yes")
+    no = _claim_text("ITME", "상용 배포 사례가 있는가?", "no")
+
+    assert yes == "TurboQuant은(는) 다음 기준을 충족한다: 개념 검증 또는 소규모 PoC 결과가 있는가"
+    assert no == "ITME은(는) 다음 기준을 충족하지 않는다: 상용 배포 사례가 있는가"
+    for claim in (yes, no):
+        assert "응답=" not in claim
+        assert not claim.endswith("?")
