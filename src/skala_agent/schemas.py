@@ -1,8 +1,16 @@
 """공유 계약. 변경 시 retrieval / agents / workflow 담당자와 함께 검토."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AliasChoices, BaseModel, Field, HttpUrl, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    StringConstraints,
+    model_validator,
+)
 
 Perspective = Literal["trl", "market", "stakeholder", "domain"]
 PERSPECTIVES: tuple[Perspective, ...] = ("trl", "market", "stakeholder", "domain")
@@ -14,30 +22,42 @@ class Technology(BaseModel):
     camp: Literal["sw", "hw"]
 
 
-class AgentError(BaseModel):
-    code: str
-    message: str
+NonBlank = Annotated[str, StringConstraints(pattern=r"\S")]
+Confidence = Literal["low", "medium", "high"]
+
+
+class EvaluationRecord(BaseModel):
+    """평가 출력의 오타 필드는 묵인하지 않습니다. 원문 공백은 보존합니다."""
+
+    model_config = ConfigDict(extra="forbid", revalidate_instances="always")
+
+
+class AgentError(EvaluationRecord):
+    code: NonBlank
+    message: NonBlank
     retryable: bool = True
 
 
-class Evidence(BaseModel):
-    id: str
-    technology_id: str
-    claim: str
+class Evidence(EvaluationRecord):
+    id: NonBlank
+    technology_id: NonBlank
+    claim: NonBlank
     url: HttpUrl
-    title: str
+    title: NonBlank
     source_type: Literal["paper", "official", "market_report", "news", "community"]
-    excerpt: str = Field(min_length=1, validation_alias=AliasChoices("excerpt", "evidence_text"))
+    excerpt: NonBlank = Field(
+        min_length=1, validation_alias=AliasChoices("excerpt", "evidence_text")
+    )
     section_or_page: str | None = None
     chunk_id: str | None = None
-    confidence: Literal["low", "medium", "high"] = "low"
+    confidence: Confidence = "low"
     page: int | None = Field(default=None, ge=1)
     # 검색된 출처의 존재와 주장 지지는 별개. 실제 검증자가 확인한 경우만 True.
     supports_claim: bool = False
 
 
-class Signal(BaseModel):
-    question: str
+class Signal(EvaluationRecord):
+    question: NonBlank
     grade: Literal["상", "중", "하"]
     evidence_ids: list[str] = Field(default_factory=list)
 
@@ -52,12 +72,12 @@ class TechAnalysis(BaseModel):
     status: Literal["pending", "assessed"] = "pending"
 
 
-class TRLDetails(BaseModel):
+class TRLDetails(EvaluationRecord):
     perspective: Literal["trl"] = "trl"
     level: int | None = Field(default=None, ge=1, le=9)
 
 
-class MarketDetails(BaseModel):
+class MarketDetails(EvaluationRecord):
     perspective: Literal["market"] = "market"
     demand: Literal["수요 불명확", "수요 존재", "수요 확실"] | None = None
     adoption: Literal["연구 단계", "시범 적용", "상용 채택"] | None = None
@@ -65,20 +85,20 @@ class MarketDetails(BaseModel):
     dependency_risks: list[str] = Field(default_factory=list)
 
 
-class StakeholderPosition(BaseModel):
+class StakeholderPosition(EvaluationRecord):
     stakeholder: Literal["gpu_vendor", "memory_vendor", "cloud_operator", "open_source", "investor"]
     stance: Literal["지지", "유보", "회의적", "자료 없음"]
-    rationale: str
+    rationale: NonBlank
     evidence_ids: list[str] = Field(default_factory=list)
 
 
-class StakeholderDetails(BaseModel):
+class StakeholderDetails(EvaluationRecord):
     perspective: Literal["stakeholder"] = "stakeholder"
     positions: list[StakeholderPosition] = Field(default_factory=list)
     overall: Literal["우호적", "부정적", "혼재"] | None = None
 
 
-class DomainDetails(BaseModel):
+class DomainDetails(EvaluationRecord):
     perspective: Literal["domain"] = "domain"
     cost: Literal["원가 개선 명확", "조건부 개선", "개선 불명확"] | None = None
     sla_risk: Literal["낮음", "중간", "높음", "판단 불가"] | None = None
@@ -86,12 +106,12 @@ class DomainDetails(BaseModel):
     operational_risks: list[str] = Field(default_factory=list)
 
 
-class Assessment(BaseModel):
-    technology_id: str
+class Assessment(EvaluationRecord):
+    technology_id: NonBlank
     perspective: Perspective
-    verdict: str
-    rationale: str = Field(validation_alias=AliasChoices("rationale", "reason"))
-    confidence: Literal["low", "medium", "high"] = "low"
+    verdict: NonBlank
+    rationale: NonBlank = Field(validation_alias=AliasChoices("rationale", "reason"))
+    confidence: Confidence = "low"
     signals: list[Signal] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     status: Literal["pending", "assessed", "failed"] = "pending"

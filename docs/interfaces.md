@@ -65,7 +65,7 @@
 | StakeholderDetails | positions: gpu_vendor / memory_vendor / cloud_operator / open_source / investor별 stance·rationale·evidence_ids; overall |
 | DomainDetails | cost, sla_risk, operations: 설계서 축별 등급 또는 null; operational_risks |
 
-미확인 축은 null, 이해관계자 자료 없음은 명시적인 stance로 표현합니다. details의 perspective는 상위 Assessment와 일치해야 합니다. 축별 질문·집계·모든 주체의 출력 보장은 평가 Agent 구현(#5~#7)에 남습니다. 검증된 고유 URL이 2개 미만인 결과는 검증 단계에서 confidence=low가 됩니다.
+미확인 축은 null, 이해관계자 자료 없음은 명시적인 stance로 표현합니다. details의 perspective는 상위 Assessment와 일치해야 합니다. 축별 질문·집계는 #5/#6 평가 구현에, 관점별 완성도·5개 주체·근거 참조 검증은 #7의 EvaluationOutput에 적용되어 있습니다. 검증된 고유 URL이 2개 미만인 결과는 검증 단계에서 confidence=low가 됩니다.
 
 ## Evidence ID와 검증 책임
 
@@ -116,3 +116,7 @@ validator는 signals의 조사 질문을 우선 사용해 기술·관점이 포�
 ## 이해관계자·도메인 구현 (#6)
 
 `EvaluationProvider(..., retriever=None)` 및 `build_provider(retriever=...)`로 도메인 논문 검색을 주입합니다. 도메인은 role/paper_id 제한 없이 검색하며 primary와 독립 reference를 포함합니다. 미연결 시 결과 rationale에 명시합니다. 이해관계자는 웹검색을 사용합니다. 공유 State와 Assessment/Evidence schema는 그대로 유지하며, 수치·실험 조건은 rationale과 연결된 Evidence 원문·페이지·chunk_id로 보존합니다. 자세한 집계 및 검증 범위는 [#6 실행 안내](issue-6-evaluation.md)를 참고하세요.
+
+## 공통 평가 경계 검증 (#7)
+
+`evaluation_contracts.EvaluationOutput`이 평가와 Evidence를 함께 검사합니다. 실제 EvaluationProvider는 선택 기술·관점 일치, 참조 존재·기술 일치, 세부 근거 포함 관계, assessed 축 완성도, 5개 주체와 집계 일관성을 검증하고 고유 참조 URL이 2개 미만이면 confidence를 low로 제한합니다. pending도 low입니다. 평가 관련 모델의 알 수 없는 필드와 공백만 있는 필수 문자열은 거부합니다. 기존 tuple 반환·State·입력 alias는 유지합니다. [상세 계약 및 예제](issue-7-evaluation-schema.md)를 참고하세요.
