@@ -21,6 +21,15 @@ make lint
 uv run skala-agent --output outputs/my-report.md
 ```
 
+실행 모드는 `--mode`로 구분합니다. 기본값 `demo`는 API 키 없이 동작하고, `real`은
+실제 provider(`skala_agent.adapters.build_provider()`)를 불러옵니다. adapter가 아직
+없으면 demo로 되돌아가지 않고 안내 메시지와 함께 종료합니다.
+
+```bash
+uv run skala-agent --mode demo    # 기본값. 외부 호출 없음
+uv run skala-agent --mode real    # 실제 검색·LLM provider 연결
+```
+
 ## 구성
 
 ```text
