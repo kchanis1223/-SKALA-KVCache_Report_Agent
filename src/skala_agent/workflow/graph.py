@@ -236,23 +236,52 @@ def build_graph(provider: Provider | None = None):
                 failed.error.code,
                 failed.error.message,
             )
-        return {"analyses": {key: assessments}, "evidence": evidence}
+        # 부분 재평가에서 요청하지 않은 기술의 판정이 사라지지 않게 합병합니다.
+        # analyses reducer는 관점 목록 전체를 교체하므로, 관점 안에서의 기술별
+        # 병합은 이 노드가 책임집니다.
+        merged = {item.technology_id: item for item in state["analyses"].get(key, [])}
+        merged.update({item.technology_id: item for item in assessments})
+        order = [t.id for t in payload["state"]["selected_technologies"]]
+        order += [tid for tid in merged if tid not in order]
+        return {
+            "analyses": {key: [merged[tid] for tid in order if tid in merged]},
+            "evidence": evidence,
+        }
 
     def dispatch(state):
-        targets = (
-            PERSPECTIVES
-            if state["retry_count"] == 0
-            else sorted({m.perspective for m in state["missing_evidence"] if m.retryable})
-        )
+        # 첫 회차는 전체 평가, 재시도는 retryable인 (관점, 기술)만 다시 봅니다.
+        # 관점만 추출하면 한 기술의 근거가 부족해도 같은 관점의 두 기술을 모두
+        # 다시 평가해 호출 수가 두 배가 됩니다.
+        technologies = state["selected_technologies"]
+        if state["retry_count"] == 0:
+            targets = {key: technologies for key in PERSPECTIVES}
+        else:
+            wanted: dict[str, set[str]] = {}
+            for item in state["missing_evidence"]:
+                if item.retryable:
+                    wanted.setdefault(item.perspective, set()).add(item.technology_id)
+            # 선택 순서를 유지해 재평가 결과 순서가 실행마다 달라지지 않게 합니다.
+            targets = {
+                key: [t for t in technologies if t.id in ids] for key, ids in sorted(wanted.items())
+            }
+            targets = {key: techs for key, techs in targets.items() if techs}
         # "병렬"이라고 적었더니 실제 추론이 직렬인 사실이 로그에서 가려졌습니다.
         # 그래프가 하는 일은 fan-out(대상 선정과 분기)까지이고, 동시 실행 여부는
         # 모델 계층의 lock이 결정합니다. 로그는 그래프가 보장하는 것만 말합니다.
         logger.info(
             "관점 %s 실행: %s",
             "fan-out" if state["retry_count"] == 0 else f"재평가({state['retry_count']}회차)",
-            ", ".join(targets) or "없음",
+            ", ".join(f"{key}({','.join(t.id for t in techs)})" for key, techs in targets.items())
+            or "없음",
         )
-        return [Send("evaluate", {"perspective": key, "state": state}) for key in targets]
+        # 공유 State를 고치지 않고, 대상 기술만 좁힌 얕은 사본을 넘깁니다.
+        return [
+            Send(
+                "evaluate",
+                {"perspective": key, "state": {**state, "selected_technologies": techs}},
+            )
+            for key, techs in targets.items()
+        ]
 
     graph.add_node("evaluate", evaluate)
     graph.add_node("synthesize", lambda state: _logged_synthesize(state, provider))

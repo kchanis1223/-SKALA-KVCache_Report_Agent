@@ -1,7 +1,7 @@
 """재검색 결과가 부족 관점에 전달되고 정상 관점 결과가 보존되는지 확인."""
 
 from skala_agent.providers import DemoProvider
-from skala_agent.schemas import Assessment, Evidence
+from skala_agent.schemas import AgentError, Assessment, Evidence
 from skala_agent.workflow.graph import build_graph, initial_state
 
 
@@ -115,3 +115,112 @@ def test_failure_reason_does_not_leak_provider_exception_text():
         assert "localhost" not in assessment.rationale
         assert assessment.error is None or "localhost" not in assessment.error.message
     assert "localhost" not in state["report"]
+
+
+class PartialMissProvider(DemoProvider):
+    """turboquant만 근거가 부족하고 itme은 충분한 상태를 만듭니다."""
+
+    def __init__(self):
+        self.assessed = []
+
+    def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+        assessments, sources = [], []
+        for tech in technologies:
+            self.assessed.append((perspective, tech.id))
+            supported = tech.id == "itme"
+            eid = f"{perspective}-{tech.id}"
+            assessments.append(
+                Assessment(
+                    technology_id=tech.id,
+                    perspective=perspective,
+                    verdict="fixture verdict",
+                    rationale="test only",
+                    confidence="high",
+                    status="assessed",
+                    evidence_ids=[eid],
+                )
+            )
+            sources.append(
+                Evidence(
+                    id=eid,
+                    technology_id=tech.id,
+                    claim="test only",
+                    url=f"https://example.org/{eid}",
+                    title="Test fixture",
+                    excerpt="Synthetic evidence for testing",
+                    source_type="official",
+                    supports_claim=supported,
+                )
+            )
+        return assessments, sources
+
+    def search_missing(self, missing):
+        # 부족 항목은 turboquant만이어야 합니다.
+        assert {m.technology_id for m in missing} == {"turboquant"}
+        return []
+
+
+def test_retry_only_reassesses_the_technology_that_is_missing_evidence():
+    """한 기술만 부족하면 같은 관점의 다른 기술은 다시 평가하지 않는다.
+
+    dispatch가 perspective만 추출하면 한 기술이 부족해도 두 기술을 모두 다시
+    평가해 모델 호출이 두 배가 됩니다.
+    """
+    provider = PartialMissProvider()
+    state = build_graph(provider).invoke(initial_state())
+
+    first_round = provider.assessed[:8]
+    retries = provider.assessed[8:]
+
+    assert sorted(first_round) == sorted(
+        (p, t) for p in ("trl", "market", "stakeholder", "domain") for t in ("turboquant", "itme")
+    )
+    assert retries, "재평가가 한 번은 실행되어야 합니다"
+    assert {t for _, t in retries} == {"turboquant"}, provider.assessed
+    assert state["retry_count"] == 2
+
+
+def test_partial_retry_preserves_the_other_technology_verdict():
+    """재평가하지 않은 기술의 판정과 근거가 그대로 남는다."""
+    state = build_graph(PartialMissProvider()).invoke(initial_state())
+
+    for perspective in ("trl", "market", "stakeholder", "domain"):
+        results = state["analyses"][perspective]
+        assert [a.technology_id for a in results] == ["turboquant", "itme"], perspective
+        assert all(a.status == "assessed" for a in results), perspective
+    assert {e.id for e in state["evidence"] if e.supports_claim} == {
+        f"{p}-itme" for p in ("trl", "market", "stakeholder", "domain")
+    }
+
+
+def test_non_retryable_technology_is_not_reassessed():
+    """non-retryable 부족 항목은 재평가 대상에서 빠진다."""
+
+    class PermanentFailure(PartialMissProvider):
+        def assess(self, perspective, technologies, domain, tech_analysis, evidence):
+            assessments, sources = super().assess(
+                perspective, technologies, domain, tech_analysis, evidence
+            )
+            if perspective != "domain":
+                return assessments, sources
+            return [
+                item.model_copy(
+                    update={
+                        "status": "failed",
+                        "verdict": "판단 보류",
+                        "error": AgentError(
+                            code="ValueError", message="영구 실패", retryable=False
+                        ),
+                    }
+                )
+                for item in assessments
+            ], sources
+
+        def search_missing(self, missing):
+            assert "domain" not in {m.perspective for m in missing if m.retryable}
+            return []
+
+    provider = PermanentFailure()
+    build_graph(provider).invoke(initial_state())
+
+    assert [entry for entry in provider.assessed[8:] if entry[0] == "domain"] == []

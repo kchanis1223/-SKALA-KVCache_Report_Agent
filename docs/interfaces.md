@@ -107,7 +107,7 @@ Evidence 발급 주체는 근거를 생성하는 research / 각 평가 provider�
 
 validator는 signals의 조사 질문을 우선 사용해 기술·관점이 포함된 검색 질의를 만듭니다. 질문이 없으면 판정 또는 미완료 이유를 사용합니다. 실제 도메인별 질의 정교화는 검증/검색 Agent에서 확장합니다.
 
-평가 provider의 TimeoutError / ConnectionError는 해당 관점의 두 기술을 failed로 변환합니다. 실제 SDK adapter는 이에 해당하는 오류를 표준 예외로 변환하거나 명시적 failed Assessment를 반환해야 합니다. raw exception 메시지는 보고서에 넣지 않습니다. `AgentError.retryable=False`이면 해당 부족 항목은 재검색하지 않습니다. 같은 관점에 retryable 항목이 하나라도 있으면 두 기술을 함께 재평가합니다.
+평가 provider의 TimeoutError / ConnectionError는 해당 관점의 두 기술을 failed로 변환합니다. 실제 SDK adapter는 이에 해당하는 오류를 표준 예외로 변환하거나 명시적 failed Assessment를 반환해야 합니다. raw exception 메시지는 보고서에 넣지 않습니다. `AgentError.retryable=False`이면 해당 부족 항목은 재검색하지 않습니다. 재평가는 retryable인 `(perspective, technology_id)` 쌍만 대상으로 하며, 한 기술만 부족하면 같은 관점의 다른 기술은 다시 평가하지 않습니다. 부분 재평가 결과는 evaluate 노드가 관점 안에서 기술 키로 병합해, 재평가하지 않은 기술의 판정과 근거를 보존합니다.
 
 재검색은 최대 2회입니다. 성공한 관점은 보존하고, 미해결·실패 관점은 판단 보류 및 6장 한계점에 표시합니다. malformed output / ValueError 등 계약·프로그래밍 오류는 숨기지 않고 실행을 중단합니다. 공통 기술 조사·추가 검색 자체의 서비스 오류 처리, 네트워크 backoff, checkpoint는 #10의 후속 범위입니다.
 
