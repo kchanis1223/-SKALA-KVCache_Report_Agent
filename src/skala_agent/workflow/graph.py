@@ -1,3 +1,5 @@
+import time
+
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
@@ -18,6 +20,31 @@ from skala_agent.workflow.state import EvaluationState
 
 AGENTS = {"trl": trl, "market": market, "stakeholder": stakeholder, "domain": domain}
 MAX_RETRIES = 2
+
+# 논문 조사는 이후 모든 관점 평가의 근거이므로 일시적 오류를 재시도합니다.
+RESEARCH_ATTEMPTS = 3
+RESEARCH_BACKOFF_SECONDS = 1.0
+
+
+class ResearchUnavailableError(RuntimeError):
+    """재시도 후에도 논문 조사를 마치지 못한 경우."""
+
+
+def research_with_retry(state, provider):
+    last: Exception | None = None
+    for attempt in range(1, RESEARCH_ATTEMPTS + 1):
+        try:
+            return research.run(state, provider)
+        except (TimeoutError, ConnectionError) as exc:
+            # 일시적 외부 오류만 재시도합니다. 계약 위반이나 프로그래밍 오류는 그대로 전달합니다.
+            last = exc
+            if attempt < RESEARCH_ATTEMPTS:
+                time.sleep(RESEARCH_BACKOFF_SECONDS * attempt)
+    raise ResearchUnavailableError(
+        f"논문 조사를 {RESEARCH_ATTEMPTS}회 시도했으나 모두 실패했습니다"
+        f" (마지막 오류: {type(last).__name__}). 근거 없는 평가를 만들지 않기 위해"
+        " 실행을 중단합니다."
+    ) from last
 
 
 def initial_state() -> EvaluationState:
@@ -40,7 +67,7 @@ def initial_state() -> EvaluationState:
 def build_graph(provider: Provider | None = None):
     provider = provider or DemoProvider()
     graph = StateGraph(EvaluationState)
-    graph.add_node("research", lambda state: research.run(state, provider))
+    graph.add_node("research", lambda state: research_with_retry(state, provider))
 
     def evaluate(payload):
         key, state = payload["perspective"], payload["state"]
