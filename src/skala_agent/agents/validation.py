@@ -1,9 +1,9 @@
 from skala_agent.schemas import MissingEvidence
 
 
-def valid_sources(assessment, evidence):
+def valid_evidence(assessment, evidence):
     return {
-        str(e.url): e
+        e.id: e
         for e in evidence
         if e.id in assessment.evidence_ids
         and e.technology_id == assessment.technology_id
@@ -11,11 +11,19 @@ def valid_sources(assessment, evidence):
     }
 
 
-def run(state):
+def valid_sources(assessment, evidence):
+    return {str(e.url): e for e in valid_evidence(assessment, evidence).values()}
+
+
+def run(state, provider=None):
+    updates = provider.validate_evidence(state["evidence"]) if provider else []
+    evidence = {item.id: item for item in state["evidence"]}
+    evidence.update({item.id: item for item in updates})
+    evidence = list(evidence.values())
     missing = []
     normalized = []
     for item in state["synthesis"]:
-        sources = valid_sources(item, state["evidence"])
+        sources = valid_sources(item, evidence)
         if len(sources) < 2:
             item = item.model_copy(update={"confidence": "low"})
         normalized.append(item)
@@ -50,7 +58,9 @@ def run(state):
             continue
         for signal in item.signals:
             signal_sources = {
-                str(e.url): e for e in sources.values() if e.id in signal.evidence_ids
+                e.id: e
+                for e in valid_evidence(item, evidence).values()
+                if e.id in signal.evidence_ids
             }
             if not signal_sources:
                 missing.append(
@@ -65,4 +75,7 @@ def run(state):
                     )
                 )
     # 원문 entailment·중립성 판정은 provider가 Evidence.supports_claim에 반영한다.
-    return {"missing_evidence": missing, "synthesis": normalized}
+    result = {"missing_evidence": missing, "synthesis": normalized}
+    if updates:
+        result["evidence"] = updates
+    return result

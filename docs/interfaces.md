@@ -43,7 +43,7 @@
 | 기술 조사 | selected_technologies | `research(technologies) -> (dict[str, TechAnalysis], list[Evidence])` |
 | 관점별 평가 | perspective, technologies, domain, tech_analysis, evidence | `assess(...) -> (list[Assessment], list[Evidence])` |
 | 종합 | analyses, evidence | `synthesis`와 `synthesis_findings`. 외부 검색 없음 |
-| 검증 | synthesis, evidence | 정규화한 synthesis, missing_evidence. 외부 검색 없음 |
+| 검증 | synthesis, evidence | provider의 `validate_evidence(evidence) -> list[Evidence]`로 지지 여부를 갱신한 뒤 정규화한 synthesis와 missing_evidence 반환 |
 | 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신 |
 | 보고서 | synthesis, evidence, missing_evidence, 입력 기술·도메인, retry_count | report. 외부 검색 없음 |
 
@@ -75,8 +75,8 @@ Evidence 발급 주체는 근거를 생성하는 research / 각 평가 provider�
 - 한 owner만 같은 ID를 갱신합니다. 관점 간 동일 원문을 사용해도 owner namespace가 달라 병렬 쓰기가 섞이지 않습니다.
 - ID가 같으면 excerpt·confidence·supports_claim 등의 최신 값으로 교체합니다. 지지가 철회된 False도 이전 True를 대체합니다.
 - 같은 ID에서 기술·주장·URL·chunk_id를 바꾸면 충돌 오류입니다. 새로운 주장 또는 출처에는 새 ID를 발급합니다.
-- `supports_claim`은 기본 False. 출처 수집 담당자는 검색 성공만으로 True로 설정하지 않습니다. 이준형 담당 검증 컴포넌트가 원문과 주장의 지지를 판정하고 동일 ID Evidence 업데이트를 반환합니다.
-- validation은 플래그와 Assessment·Signal 참조 관계를 검사합니다. 원문 의미 지지·중립성 판정은 provider가 수행해 동일 Evidence의 `supports_claim`으로 반영해야 하며, 외부 의미 검증 adapter의 호출 경로는 provider 구현과 함께 추가합니다. 그 전에는 신뢰할 수 있는 검증된 fixture만 True로 사용합니다.
+- `supports_claim`은 기본 False. 출처 수집 담당자는 검색 성공만으로 True로 설정하지 않습니다. 검증 provider는 원문 발췌와 주장을 비교해 지지·중립성을 판정하고 동일 ID Evidence 업데이트를 반환합니다.
+- validation은 provider 업데이트와 Assessment·Signal 참조 관계를 함께 검사합니다. provider가 없거나 demo 모드이면 기존 플래그만 검사합니다.
 - 보고서는 최종 Assessment가 참조하고 supports_claim=True인 해당 기술의 근거만 인용합니다. URL dedup은 독립된 출처라는 보장은 아닙니다.
 
 ## 종합 결과
