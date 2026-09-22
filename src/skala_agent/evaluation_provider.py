@@ -1,4 +1,4 @@
-"""이슈 #5 전용 provider. 모델 객체만 주입하여 로컬/API 구현을 교체합니다."""
+"""4개 관점 평가 provider. 모델 객체만 주입하여 로컬/API 구현을 교체합니다."""
 
 from skala_agent.agents.web_evaluation import SUPPORTED, WebEvaluator
 from skala_agent.evidence import evidence_id
@@ -9,7 +9,7 @@ from skala_agent.schemas import AgentError, Assessment, Evidence
 
 
 class EvaluationProvider(DemoProvider):
-    def __init__(self, model=None, search=None, *, models=None):
+    def __init__(self, model=None, search=None, *, models=None, retriever=None):
         if search is None or (model is None) == (models is None):
             raise ValueError("search와 model 또는 models 중 하나를 지정하세요.")
         self.models = models
@@ -17,6 +17,7 @@ class EvaluationProvider(DemoProvider):
             perspective: WebEvaluator(
                 StructuredExtractor(models.for_agent(perspective) if models is not None else model),
                 search,
+                retriever=retriever,
             )
             for perspective in SUPPORTED
         }

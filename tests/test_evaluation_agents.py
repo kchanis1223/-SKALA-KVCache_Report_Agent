@@ -156,10 +156,11 @@ def test_failure_of_one_technology_keeps_the_other_result():
     assert "private details" not in results[1].model_dump_json()
 
 
-def test_pending_other_perspectives_and_graph_do_not_publish_unverified_verdicts():
+def test_all_perspectives_and_graph_do_not_publish_unverified_verdicts():
     provider = EvaluationProvider(ModelFixture(), SearchFixture())
     result = build_graph(provider).invoke(initial_state())
-    assert all(a.status == "pending" for a in result["analyses"]["domain"])
+    assert all(a.details.perspective == "domain" for a in result["analyses"]["domain"])
+    assert all(a.status == "assessed" for a in result["analyses"]["stakeholder"])
     assert result["retry_count"] == 2
     assert "turboquant / trl: 판단 보류" in result["report"]
     ids = [e.id for e in result["evidence"]]

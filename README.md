@@ -2,7 +2,7 @@
 
 TurboQuant(SW)와 ITME(HW)를 데이터센터·클라우드 서빙 관점에서 비교하는 Agentic RAG 프로젝트의 협업용 뼈대입니다.
 
-**기본 실행은 API 키 없는 개발용 workflow입니다.** TRL·시장성은 Ollama Qwen3 + Tavily provider를 별도로 사용할 수 있습니다. PDF 검색, BGE-M3, VectorDB, 나머지 관점과 최종 의미 검증은 구현 대기입니다. 기본 provider는 결과를 만들어내지 않고 `판단 보류`를 반환합니다. 설계서의 기술 주장·논문 ID·성능 수치는 검증된 사실로 사용하지 않습니다.
+**기본 실행은 API 키 없는 개발용 workflow입니다.** TRL·시장성·이해관계자·도메인은 Ollama Qwen3 + Tavily provider를 별도로 사용할 수 있습니다. PDF 검색, BGE-M3, VectorDB와 최종 의미 검증은 구현 대기입니다. 기본 provider는 결과를 만들어내지 않고 `판단 보류`를 반환합니다. 설계서의 기술 주장·논문 ID·성능 수치는 검증된 사실로 사용하지 않습니다.
 
 ## 빠른 시작
 
@@ -40,7 +40,7 @@ ollama pull qwen3:8b  # 저사양 단일 모델 모드는 생략
 git clone https://github.com/kchanis1223/-SKALA-KVCache_Report_Agent.git
 cd -- -SKALA-KVCache_Report_Agent
 # PR 검토 중: main 병합 후에는 생략
-git switch feat/issue-5-qwen3-evaluation
+git switch feat/issue-6-stakeholder-domain
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -48,14 +48,14 @@ cp .env.example .env
 # .env.local에 TAVILY_API_KEY를 입력합니다 (Git 제외).
 python app.py                        # 기본 demo: 모델 호출 없음
 python app.py --mode real --timeout 600  # Ollama 연결
-skala-evaluate --perspective all      # TRL·시장성만 평가
+skala-evaluate --perspective all      # 네 관점 모두 평가
 ```
 
 저사양 PC는 `.env`의 `USE_SINGLE_MODEL=true`만 바꾸고 4B만 다운로드합니다. `.env`와 `.env.local`을 자동 로딩하며 환경변수 > `.env.local` > `.env` 순서로 우선합니다. 기존 uv 사용자는 `uv sync --locked`, `uv run skala-evaluate --perspective all`로 실행할 수 있습니다.
 
 로컬 모델 추론에는 LLM API 키가 필요 없습니다. 실시간 웹검색은 기존 Tavily를 사용하므로 `.env.local`에 Tavily 키를 입력해야 합니다.
 
-전 Agent의 모델 정책을 제공하지만, 현재 실제 LLM 구현은 #5의 TRL·시장성입니다. 다른 Agent는 해당 담당자의 구현이 필요하며, 전체 그래프에서는 미구현·미검증 결과를 판단 보류로 유지합니다. 상세 설정과 제한은 [이슈 #5 실행 안내](docs/issue-5-evaluation.md)를 참고하세요.
+전 Agent의 모델 정책을 제공하지만, 현재 실제 LLM 구현은 #5의 TRL·시장성과 #6의 이해관계자·도메인입니다. 도메인 논문 검색은 Retriever 주입을 지원하며, 기본 실행에서는 실제 RAG 미연결을 표시합니다. 다른 Agent는 해당 담당자의 구현이 필요하며, 전체 그래프에서는 미구현·미검증 결과를 판단 보류로 유지합니다. 상세 설정은 [모델 실행 안내](docs/issue-5-evaluation.md), #6의 판정·RAG 연결은 [이해관계자·도메인 안내](docs/issue-6-evaluation.md)를 참고하세요.
 
 ## 구성
 

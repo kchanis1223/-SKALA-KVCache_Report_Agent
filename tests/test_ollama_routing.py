@@ -112,10 +112,10 @@ def test_actual_evaluation_requests_use_selected_model(single, expected):
     )
     provider = EvaluationProvider(models=router, search=Search())
     tech = [Technology(id="itme", name="ITME", camp="hw")]
-    for perspective in ("trl", "market"):
+    for perspective in ("trl", "market", "stakeholder", "domain"):
         results, _ = provider.assess(perspective, tech, "datacenter", {}, [])
         assert results[0].status == "pending"
-    assert calls == [expected, expected]
+    assert calls == [expected] * 4
     # 전체 graph에서도 8B를 실수로 요청하지 않습니다.
     if single:
         result = build_graph(provider).invoke(initial_state())
