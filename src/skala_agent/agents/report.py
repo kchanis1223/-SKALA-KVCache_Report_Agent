@@ -56,8 +56,23 @@ def run(state):
             state["evidence"],
         )
         lines += [f"### 3.{index} {technology.name}", ""]
-        if not analysis or analysis.status != "assessed" or not sources:
+        verified_ids = {
+            item.id
+            for item in state["evidence"]
+            if item.technology_id == technology.id and item.supports_claim
+        }
+        if (
+            not analysis
+            or analysis.status != "assessed"
+            or not sources
+            or not set(analysis.evidence_ids) <= verified_ids
+        ):
             lines += ["판단 보류 (검증된 기술 개요 근거 부족).", ""]
+            # 조사 전체를 확정하지 못해도 개별 지지가 확인된 논문 관측은 구분해 게시합니다.
+            for url, item in sources.items():
+                if item.source_type == "paper":
+                    citation = _citations({url: item}, used)
+                    lines += [f"- 검증된 논문 관측: {item.claim} {citation}", ""]
             continue
         citations = _citations(sources, used)
         lines += [f"{analysis.overview} {citations}", ""]
@@ -65,6 +80,8 @@ def run(state):
             lines += [f"적용 범위: {', '.join(analysis.scope)} {citations}", ""]
         if analysis.limitations:
             lines += [f"한계: {', '.join(analysis.limitations)} {citations}", ""]
+        if analysis.experiments:
+            lines += [f"실험 및 조건: {', '.join(analysis.experiments)} {citations}", ""]
     lines += ["## 4. 관점별 평가", ""]
     missing_by_assessment = {
         (item.technology_id, item.perspective): item for item in state["missing_evidence"]
@@ -153,9 +170,11 @@ def run(state):
     ]
     lines += [f"- {m.technology_id}/{m.perspective}: {m.reason}" for m in state["missing_evidence"]]
     lines += ["", "## REFERENCE", ""]
-    lines += [
-        f"- [{index}] [{e.title}]({url})" for index, (url, e) in enumerate(used.items(), start=1)
-    ]
+    for index, (url, item) in enumerate(used.items(), start=1):
+        lines.append(f"- [{index}] [{item.title}]({url})")
+        if item.chunk_id:
+            lines.append(f"  - page: {item.page}; chunk_id: {item.chunk_id}")
+            lines.extend(f"  > {line}" for line in item.excerpt.splitlines())
     if not used:
         lines.append("검증된 인용 출처 없음.")
     return {"report": "\n".join(lines) + "\n"}

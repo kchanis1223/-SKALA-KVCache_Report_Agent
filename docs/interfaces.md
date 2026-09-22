@@ -140,3 +140,23 @@ CLI는 `--graph`(컴파일된 그래프를 mermaid로 출력), `--dry-run`(외�
 ## 공통 평가 경계 검증 (#7)
 
 `evaluation_contracts.EvaluationOutput`이 평가와 Evidence를 함께 검사합니다. 실제 EvaluationProvider는 선택 기술·관점 일치, 참조 존재·기술 일치, 세부 근거 포함 관계, assessed 축 완성도, 5개 주체와 집계 일관성을 검증하고 고유 참조 URL이 2개 미만이면 confidence를 low로 제한합니다. pending도 low입니다. 평가 관련 모델의 알 수 없는 필드와 공백만 있는 필수 문자열은 거부합니다. 기존 tuple 반환·State·입력 alias는 유지합니다. [상세 계약 및 예제](issue-7-evaluation-schema.md)를 참고하세요.
+
+## 실제 모드의 논문 RAG 연결 (#35)
+
+`build_provider()`는 `RAG_INDEX_DIR`(기본 `index/bge-m3`)의 색인을 자동으로 읽어
+기술 조사와 도메인 평가에 같은 Retriever를 주입합니다. runtime과 `skala-evaluate`도
+이 factory를 사용합니다. 명시적으로 `retriever=None`을 전달하면 자동 로딩을 끕니다.
+색인이 없으면 기술 조사는 미연결 사유가 있는 pending, 도메인은 기존 웹 경로를 사용합니다.
+손상된 색인·임베딩 설정 오류는 색인 없음으로 숨기지 않습니다. demo는 색인을 읽지 않습니다.
+
+`EvaluationProvider.research()`는 `role=primary, paper_id=technology.id`로 네 조사
+질문을 검색하고, research 모델(기본 4B)로 개요·범위·한계·실험 조건을 추출합니다.
+현재 문서 설정의 primary paper_id는 기술 ID(turboquant / itme)와 같습니다.
+출처 ID와 연속 원문 인용을 검사한 항목만 TechAnalysis와 Evidence에 넣고, 확인할 수
+없는 항목은 비워 둡니다. 참고문헌 section은 하드 필터하지 않습니다.
+Evidence의 chunk_id/page/URL/section을 보존하고 supports_claim은 False로 시작합니다.
+
+보고서는 TechAnalysis가 참조한 모든 근거의 지지가 검증된 경우에만 기술 조사 내용을
+게시합니다. 일부 필드의 지지만으로 미검증 필드까지 공개하지 않습니다.
+조사 전체가 보류되어도 개별 지지가 검증된 논문 근거는 별도 관측으로 구분해 게시합니다.
+논문 참고문헌에는 원문 발췌, page, chunk_id를 함께 출력합니다.

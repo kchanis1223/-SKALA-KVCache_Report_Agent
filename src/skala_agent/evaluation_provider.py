@@ -4,6 +4,7 @@ import json
 
 from pydantic import BaseModel, ValidationError
 
+from skala_agent.agents.paper_research import research_technologies
 from skala_agent.agents.web_evaluation import SUPPORTED, WebEvaluator
 from skala_agent.evaluation_contracts import validate_evaluation_output
 from skala_agent.evidence import evidence_id
@@ -32,6 +33,13 @@ class EvaluationProvider(DemoProvider):
             for perspective in SUPPORTED
         }
         self.search = search
+        self.retriever = retriever
+        self.research_model = StructuredExtractor(
+            models.for_agent("research") if models is not None else model
+        )
+
+    def research(self, technologies):
+        return research_technologies(technologies, self.retriever, self.research_model)
 
     def validate_evidence(self, evidence):
         """원문 발췌가 주장 자체를 직접·중립적으로 지지하는지 판정한다."""
