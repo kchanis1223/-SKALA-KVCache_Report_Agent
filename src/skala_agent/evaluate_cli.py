@@ -1,4 +1,4 @@
-"""Ollama 모델 배정 설정을 사용하는 이슈 #5 전용 잠정 평가 명령."""
+"""Ollama 모델 배정 설정을 사용하는 4개 관점 잠정 평가 명령."""
 
 import argparse
 import json
@@ -10,8 +10,12 @@ from skala_agent.workflow.graph import initial_state
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ollama Qwen3 TRL·시장성 잠정 평가")
-    parser.add_argument("--perspective", choices=("trl", "market", "all"), default="all")
+    parser = argparse.ArgumentParser(
+        description="Ollama Qwen3 TRL·시장성·이해관계자·도메인 잠정 평가"
+    )
+    parser.add_argument(
+        "--perspective", choices=("trl", "market", "stakeholder", "domain", "all"), default="all"
+    )
     parser.add_argument("--env-file", default=".env")
     parser.add_argument("--output", type=Path, default=Path("outputs/evaluations.json"))
     args = parser.parse_args()
@@ -21,14 +25,20 @@ def main():
         parser.error(str(exc))
     state = initial_state()
     technologies = state["selected_technologies"]
-    research, _ = provider.research(technologies)
+    research, research_evidence = provider.research(technologies)
     assessments, evidence = [], []
-    for perspective in ("trl", "market") if args.perspective == "all" else (args.perspective,):
-        results, sources = provider.assess(perspective, technologies, state["domain"], research, [])
+    for perspective in (
+        ("trl", "market", "stakeholder", "domain")
+        if args.perspective == "all"
+        else (args.perspective,)
+    ):
+        results, sources = provider.assess(
+            perspective, technologies, state["domain"], research, research_evidence
+        )
         assessments.extend(results)
         evidence.extend(sources)
     output = {
-        "notice": "이슈 #5의 잠정 평가입니다. 의미적 근거 검증 전이며 최종 보고서가 아닙니다.",
+        "notice": "잠정 평가입니다. 의미적 근거 검증 전이며 최종 보고서가 아닙니다.",
         "provider": "ollama",
         "models": provider.models.settings.assignment(),
         "assessments": [a.model_dump(mode="json") for a in assessments],

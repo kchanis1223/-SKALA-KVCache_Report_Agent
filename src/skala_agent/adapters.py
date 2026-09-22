@@ -6,7 +6,7 @@ from skala_agent.model_config import ModelRouter, ModelSettings, read_environmen
 from skala_agent.runtime import ProviderUnavailableError
 
 
-def build_provider(env_file=".env"):
+def build_provider(env_file=".env", *, retriever=None):
     env = read_environment(env_file)
     try:
         settings = ModelSettings.from_environment(env)
@@ -14,7 +14,7 @@ def build_provider(env_file=".env"):
             env.get("TAVILY_API_KEY", ""),
             official_domains=env.get("OFFICIAL_SOURCE_DOMAINS", "").split(","),
         )
-        return EvaluationProvider(models=ModelRouter(settings), search=search)
+        return EvaluationProvider(models=ModelRouter(settings), search=search, retriever=retriever)
     except ValueError as exc:
         raise ProviderUnavailableError(
             ".env/.env.local의 Ollama 모델 설정 및 TAVILY_API_KEY를 확인하세요. "

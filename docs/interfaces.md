@@ -117,3 +117,7 @@ validator는 signals의 조사 질문을 우선 사용해 기술·관점이 포�
 ## 공통 모델 배정
 
 `ModelRouter.for_agent(name)`을 사용합니다. research/additional_search는 4B, trl/market/stakeholder/domain/validation/synthesis/report는 8B입니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
+
+## 이해관계자·도메인 구현 (#6)
+
+`EvaluationProvider(..., retriever=None)` 및 `build_provider(retriever=...)`로 도메인 논문 검색을 주입합니다. 도메인은 role/paper_id 제한 없이 검색하며 primary와 독립 reference를 포함합니다. 미연결 시 결과 rationale에 명시합니다. 이해관계자는 웹검색을 사용합니다. 공유 State와 Assessment/Evidence schema는 그대로 유지하며, 수치·실험 조건은 rationale과 연결된 Evidence 원문·페이지·chunk_id로 보존합니다. 자세한 집계 및 검증 범위는 [#6 실행 안내](issue-6-evaluation.md)를 참고하세요.

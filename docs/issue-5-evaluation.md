@@ -14,7 +14,7 @@
 
 `ModelSettings`와 `ModelRouter`가 전 Agent의 배정을 관리합니다. `USE_SINGLE_MODEL=true`이면 모두 `SINGLE_MODEL=qwen3:4b`로 바뀌며 8B 객체나 요청을 만들지 않습니다. 14B·32B 모델은 설정 검증에서 거부합니다. `.env`와 `.env.local`을 자동 로딩하며 환경변수 > `.env.local` > `.env` 순서로 우선합니다.
 
-**현재 실제 LLM 연결은 #5의 TRL·시장성에 적용됩니다.** 기술 조사 RAG·이해관계자·도메인은 pending, 종합·검증·보고서는 기존 코드 기반 뼈대입니다. 추가 검색은 현재 전달된 질의로 자료를 수집합니다. 나머지 담당자는 `models.for_agent("research")` 같은 공통 배정 API를 자신의 구현에 연결하면 됩니다. 모델 정책 제공과 9개 Agent의 구현 완료를 구분합니다.
+**실제 LLM 연결은 #5의 TRL·시장성과 #6의 이해관계자·도메인에 적용됩니다.** 기술 조사 RAG는 pending, 종합·검증·보고서는 기존 코드 기반 뼈대입니다. 추가 검색은 현재 전달된 질의로 자료를 수집합니다. 나머지 담당자는 `models.for_agent("research")` 같은 공통 배정 API를 자신의 구현에 연결하면 됩니다. 모델 정책 제공과 9개 Agent의 구현 완료를 구분합니다.
 
 ```python
 from skala_agent.model_config import ModelRouter, ModelSettings, read_environment
@@ -51,7 +51,7 @@ ollama pull qwen3:8b
 git clone https://github.com/kchanis1223/-SKALA-KVCache_Report_Agent.git
 cd -- -SKALA-KVCache_Report_Agent
 # PR 검토 중에만 사용. main 병합 후에는 아래 전환을 생략합니다.
-git switch feat/issue-5-qwen3-evaluation
+git switch feat/issue-6-stakeholder-domain
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -60,7 +60,7 @@ cp .env.example .env
 
 python app.py                         # 기본 demo: Ollama/API 키 없이 전체 흐름 확인
 python app.py --mode real --timeout 600  # Ollama + Tavily로 전체 그래프 실행
-skala-evaluate --perspective all       # #5의 두 관점만 JSON으로 평가
+skala-evaluate --perspective all       # 네 관점을 JSON으로 평가
 ```
 
 저사양 환경에서는 `qwen3:4b`만 pull하고 `.env`의 `USE_SINGLE_MODEL=true`만 바꾸면 됩니다. 이때 real 그래프의 실제 LLM 요청도 4B만 사용합니다. 모델 호출은 직렬화하고 `keep_alive=0`으로 사용 후 언로드해 두 모델을 동시에 상주시킬 필요를 줄였습니다. 대신 반복 로딩 시간이 발생합니다. 4B도 실행 가능한 메모리가 필요하며 CPU/GPU와 컨텍스트에 따라 속도가 다릅니다.
@@ -94,7 +94,7 @@ Tavily 출처는 기본적으로 news, arxiv.org는 paper, `OFFICIAL_SOURCE_DOMA
 
 `skala-evaluate`는 `outputs/evaluations.json`에 실제 모델 배정·Assessment·Evidence를 저장합니다. `--env-file`, `--perspective`, `--output`으로 설정합니다. 실패 결과를 저장한 경우 exit code 1로 종료합니다. `app.py --mode real`은 공통 `runtime.load_provider`와 `adapters.build_provider()`를 통해 같은 모델 정책을 사용하고 보고서를 생성합니다.
 
-**출력은 의미적 근거 검증 전 잠정 평가입니다.** 새 Evidence의 supports_claim은 False이며 기존 검증된 ID·발췌가 같을 때만 상태를 보존합니다. #11 검증자가 최종 지지를 판정하기 전에는 전체 그래프에서 판단 보류로 처리됩니다. 연구 조사와 타 관점의 pending도 보고서에 유지됩니다.
+**출력은 의미적 근거 검증 전 잠정 평가입니다.** 새 Evidence의 supports_claim은 False이며 기존 검증된 ID·발췌가 같을 때만 상태를 보존합니다. #11 검증자가 최종 지지를 판정하기 전에는 전체 그래프에서 판단 보류로 처리됩니다. 연구 조사 및 근거가 부족한 관점의 pending도 보고서에 유지됩니다.
 
 ## 검증 범위
 
