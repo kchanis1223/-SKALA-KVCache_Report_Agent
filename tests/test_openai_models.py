@@ -153,6 +153,70 @@ def test_quote_options_still_return_exact_substrings_of_the_source():
     assert source_quote(content, flattened) == content
 
 
+def test_strict_schema_drops_enum_values_with_double_quotes():
+    """이중따옴표가 든 후보만 제외한다. 지우면 원문 부분문자열이 깨진다.
+
+    실측(gpt-5.4-mini): enum 값에 이중따옴표가 있으면 400으로 거부됩니다.
+    아포스트로피·탭·백슬래시·퍼센트는 통과합니다.
+    """
+    from skala_agent.integrations.openai import _strict_schema
+
+    node = _strict_schema(
+        {
+            "type": "object",
+            "properties": {
+                "quote": {
+                    "type": "string",
+                    "enum": ['he said "hi"', "it's fine", "20% faster", "a\\b"],
+                }
+            },
+            "required": ["quote"],
+        }
+    )
+
+    assert node["properties"]["quote"]["enum"] == ["it's fine", "20% faster", "a\\b"]
+
+
+def test_strict_schema_drops_the_enum_when_no_candidate_survives():
+    """후보가 하나도 안 남으면 enum을 떼고 자유 문자열로 둔다.
+
+    빈 enum은 스키마 자체가 무효라 요청이 통째로 거부됩니다. 값의 정합성은
+    citations.source_quote가 원문과 대조해 확인합니다.
+    """
+    from skala_agent.integrations.openai import _strict_schema
+
+    node = _strict_schema(
+        {
+            "type": "object",
+            "properties": {"quote": {"type": "string", "enum": ['only "bad"']}},
+            "required": ["quote"],
+        }
+    )
+
+    assert "enum" not in node["properties"]["quote"]
+    assert node["properties"]["quote"]["type"] == "string"
+
+
+def test_strict_schema_keeps_tuple_order_as_a_description():
+    """strict 모드는 튜플을 지원하지 않으므로 순서를 description으로 남긴다.
+
+    제약을 그냥 버리면 모델이 자리를 바꿔 넣습니다. 실측: 종합 모델이
+    assessment_refs에 (기술, 관점) 순으로 넣어 Pydantic 검증이 실패하고 실행
+    전체가 중단됐습니다.
+    """
+    from skala_agent.integrations.openai import _strict_schema
+    from skala_agent.schemas import SynthesisFinding
+
+    refs = _strict_schema(SynthesisFinding.model_json_schema())["properties"]["assessment_refs"][
+        "items"
+    ]
+
+    assert "prefixItems" not in refs
+    assert refs["items"] == {"type": "string"}
+    assert "[0]=trl|market|stakeholder|domain" in refs["description"]
+    assert "[1]=자유 문자열" in refs["description"]
+
+
 def test_strict_schema_leaves_non_object_nodes_alone():
     from skala_agent.integrations.openai import _strict_schema
 

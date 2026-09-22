@@ -222,3 +222,63 @@ def test_verified_evidence_produces_findings():
     findings = run(_tradeoff_fixture(supports_claim=True))["synthesis_findings"]
     assert findings
     assert all(f.evidence_ids == ["e-1"] for f in findings)
+
+
+def test_allowed_assessment_refs_are_sent_to_the_model():
+    """허용 (관점, 기술) 쌍을 payload에 명시한다.
+
+    프롬프트가 "제공한 assessment_refs"를 가리키는데 실제로는 Assessment 전체만
+    넘겨서, 모델이 쌍을 직접 유추하다 존재하지 않는 조합을 참조했습니다.
+    """
+    import json
+
+    calls = []
+
+    class Model:
+        def invoke_structured(self, messages, schema):
+            calls.append(messages)
+            return json.dumps({"findings": []})
+
+    class Provider:
+        synthesis_model = Model()
+
+    state = _tradeoff_fixture(supports_claim=True)
+    run(state, Provider())
+
+    payload = json.loads(calls[0][1]["content"])
+    assert payload["allowed_assessment_refs"] == [["domain", "turboquant"]]
+    assert "allowed_assessment_refs" in calls[0][0]["content"]
+
+
+def test_invalid_synthesis_model_output_keeps_the_rule_based_findings():
+    """종합 모델 출력이 계약을 어기면 그 출력만 버리고 실행을 계속한다.
+
+    이전에는 ModelOutputError가 graph까지 올라가 실행 전체가 중단되고 보고서가
+    생성되지 않았습니다. 규칙 기반 findings는 이미 계산돼 있습니다.
+    """
+    import json
+
+    class BadModel:
+        def invoke_structured(self, messages, schema):
+            # 존재하지 않는 (관점, 기술) 쌍을 참조합니다.
+            return json.dumps(
+                {
+                    "findings": [
+                        {
+                            "technology_id": "turboquant",
+                            "question": "resource_cost",
+                            "summary": "없는 참조",
+                            "assessment_refs": [["market", "turboquant"]],
+                            "evidence_ids": ["e-1"],
+                        }
+                    ]
+                }
+            )
+
+    class Provider:
+        synthesis_model = BadModel()
+
+    result = run(_tradeoff_fixture(supports_claim=True), Provider())
+
+    assert result["synthesis_findings"], "규칙 기반 findings는 남아야 합니다"
+    assert all(f.summary != "없는 참조" for f in result["synthesis_findings"])

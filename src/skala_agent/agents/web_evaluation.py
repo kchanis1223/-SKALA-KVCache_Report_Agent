@@ -254,6 +254,23 @@ def measurement_is_cited(measurement, citations):
     )
 
 
+def _claim_text(technology_name: str, question_text: str, answer: str) -> str:
+    """검증 모델이 판정할 수 있는 서술형 주장을 만든다.
+
+    이전 형식은 "{기술}: {질문}? 응답=yes"였습니다. validate_evidence는 "발췌가
+    이 주장을 직접·중립적으로 지지하는가"를 묻는데, 주장 자리에 물음표가 들어가
+    판정 대상이 성립하지 않았습니다. 실측(gpt-5.4-mini): trl 관점 근거 16건 중
+    5건만 지지 판정을 통과했고, 나머지는 판정할 주장이 없어 기각됐습니다.
+
+    질문 문장을 문법적으로 서술문으로 바꾸려면 어미 처리가 필요해 깨지기 쉽습니다.
+    대신 주절을 서술문으로 두고 질문을 기준 문구로 인용합니다. 응답과 근거는
+    바꾸지 않습니다.
+    """
+    criterion = question_text.strip().rstrip("?").strip()
+    stance = "충족한다" if answer == "yes" else "충족하지 않는다"
+    return f"{technology_name}은(는) 다음 기준을 {stance}: {criterion}"
+
+
 def compile_assessment(perspective, technology, questions, documents, draft, existing):
     """출처 ID·원문 발췌를 검사하고 모델 대신 등급을 집계합니다."""
     expected = {q.id for q in questions}
@@ -287,7 +304,7 @@ def compile_assessment(perspective, technology, questions, documents, draft, exi
                 raise ModelOutputError(
                     "모델 인용이 제공한 출처 또는 원문 발췌와 일치하지 않습니다."
                 )
-            claim = f"{technology.name}: {question.text} 응답={answer}"
+            claim = _claim_text(technology.name, question.text, answer)
             eid = evidence_id(
                 owner=perspective,
                 technology_id=technology.id,
