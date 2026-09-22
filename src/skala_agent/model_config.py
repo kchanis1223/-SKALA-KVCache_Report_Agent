@@ -63,6 +63,8 @@ class ModelSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
     provider: Literal["openai", "ollama"] = "openai"
     openai_model: str = DEFAULT_OPENAI_MODEL
+    # 종합·보고서의 전용 모델 호출을 생략하는 호환 옵션. 모델 배정은 바꾸지 않습니다.
+    use_single_model: bool = False
     # provider="ollama"로 되돌릴 때만 쓰입니다.
     light_model: Literal["qwen3:4b"] = "qwen3:4b"
     main_model: Literal["qwen3:4b", "qwen3:8b"] = "qwen3:4b"
@@ -81,6 +83,7 @@ class ModelSettings(BaseModel):
     def from_environment(cls, env):
         names = {
             "provider": "LLM_PROVIDER",
+            "use_single_model": "USE_SINGLE_MODEL",
             "openai_model": "OPENAI_MODEL",
             "light_model": "LIGHT_MODEL",
             "main_model": "MAIN_MODEL",

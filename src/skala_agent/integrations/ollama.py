@@ -47,7 +47,6 @@ class OllamaChat:
         self.timeout = timeout
         self.keep_alive = validate_keep_alive(keep_alive)
         self.transport = transport
-        self.keep_alive = keep_alive
         self._lock = lock if lock is not None else Lock()
 
     def invoke(self, messages):
