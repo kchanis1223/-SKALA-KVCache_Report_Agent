@@ -32,6 +32,7 @@ def initial_state() -> EvaluationState:
         "evidence": [],
         "missing_evidence": [],
         "synthesis": [],
+        "synthesis_findings": [],
         "retry_count": 0,
         "report": "",
     }
