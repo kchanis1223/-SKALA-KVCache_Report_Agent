@@ -4,7 +4,6 @@ import httpx
 import pytest
 
 from skala_agent.integrations.contracts import ModelOutputError, ServiceConfigurationError
-from skala_agent.integrations.qwen import TransformersQwen
 from skala_agent.integrations.structured import StructuredExtractor
 from skala_agent.integrations.tavily import TavilySearch
 
@@ -67,46 +66,3 @@ def test_search_errors_are_normalized_without_exposing_service_body(status, erro
     with pytest.raises(error) as caught:
         TavilySearch("test-key", transport=transport).search("query")
     assert "private" not in str(caught.value) and "test-key" not in str(caught.value)
-
-
-def test_qwen_is_lazy_and_uses_chat_template_without_thinking():
-    class Tokens(list):
-        @property
-        def shape(self):
-            return (1, 3)
-
-    class Inputs(dict):
-        def to(self, device):
-            assert device == "cpu"
-            return self
-
-    class Tokenizer:
-        eos_token_id = 99
-
-        def apply_chat_template(self, messages, **kwargs):
-            assert kwargs["enable_thinking"] is False
-            assert kwargs["add_generation_prompt"] is True
-            return Inputs(input_ids=Tokens([1, 2, 3]))
-
-        def decode(self, tokens, **kwargs):
-            assert tokens == [4, 99]
-            return '{"findings": []}'
-
-    class Model:
-        device = "cpu"
-
-        def generate(self, **kwargs):
-            assert kwargs["max_new_tokens"] == 10
-            return [[1, 2, 3, 4, 99]]
-
-    from contextlib import nullcontext
-    from types import SimpleNamespace
-
-    adapter = TransformersQwen(max_new_tokens=10, max_context_tokens=20)
-    assert adapter._model is None
-    adapter._tokenizer, adapter._model = Tokenizer(), Model()
-    adapter._torch = SimpleNamespace(inference_mode=nullcontext)
-    assert adapter.invoke([{"role": "user", "content": "test"}]) == '{"findings": []}'
-    adapter.max_context_tokens = 12
-    with pytest.raises(ModelOutputError, match="context"):
-        adapter.invoke([])

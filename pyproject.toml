@@ -7,17 +7,12 @@ dependencies = [
     "httpx>=0.28,<1",
     "langgraph>=1.0,<2",
     "pydantic>=2.10,<3",
+    "python-dotenv>=1,<2",
 ]
 
 [project.scripts]
 skala-agent = "skala_agent.cli:main"
 skala-evaluate = "skala_agent.evaluate_cli:main"
-
-[project.optional-dependencies]
-local = [
-    "torch>=2.6,<3",
-    "transformers>=4.51,<5",
-]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]

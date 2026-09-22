@@ -9,8 +9,17 @@ from skala_agent.schemas import AgentError, Assessment, Evidence
 
 
 class EvaluationProvider(DemoProvider):
-    def __init__(self, model, search):
-        self.evaluator = WebEvaluator(StructuredExtractor(model), search)
+    def __init__(self, model=None, search=None, *, models=None):
+        if search is None or (model is None) == (models is None):
+            raise ValueError("search와 model 또는 models 중 하나를 지정하세요.")
+        self.models = models
+        self.evaluators = {
+            perspective: WebEvaluator(
+                StructuredExtractor(models.for_agent(perspective) if models is not None else model),
+                search,
+            )
+            for perspective in SUPPORTED
+        }
         self.search = search
 
     def assess(self, perspective, technologies, domain, tech_analysis, evidence):
@@ -19,7 +28,7 @@ class EvaluationProvider(DemoProvider):
         assessments, collected = [], []
         for technology in technologies:
             try:
-                assessment, sources = self.evaluator.evaluate(
+                assessment, sources = self.evaluators[perspective].evaluate(
                     perspective, technology, domain, tech_analysis.get(technology.id), evidence
                 )
             except (

@@ -1,4 +1,4 @@
-"""invoke(messages) 인터페이스면 Transformers와 LangChain 모델을 동일하게 사용."""
+"""Ollama JSON Schema 출력과 일반 invoke(messages) 모델 객체를 지원."""
 
 import json
 
@@ -41,7 +41,12 @@ class StructuredExtractor:
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ]
         for attempt in range(2):
-            response = self.model.invoke(messages)
+            if hasattr(self.model, "invoke_structured"):
+                response = self.model.invoke_structured(
+                    messages, EvaluationDraft.model_json_schema()
+                )
+            else:
+                response = self.model.invoke(messages)
             text = response if isinstance(response, str) else getattr(response, "content", None)
             try:
                 return EvaluationDraft.model_validate_json(text)
