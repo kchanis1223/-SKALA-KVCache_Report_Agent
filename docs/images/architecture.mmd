@@ -1,0 +1,21 @@
+flowchart TD
+    Q([사용자 질문]) --> O
+    O["<b>Orchestrator</b> (LLM)<br/>논문 RAG로 기술 개요 작성<br/>질문에 맞춰 과제 1~6개와 worker 선택"]
+    O -- "Send" --> W1["Domain"]
+    O -- "Send" --> W2["Market"]
+    O -- "Send" --> W3["Stakeholder"]
+    O -- "Send" --> W4["Tech"]
+    subgraph W["Worker × N  —  ReAct, 도구 호출 ≤3회, 자기검토 1회"]
+      W1
+      W2
+      W3
+      W4
+    end
+    W1 & W2 & W3 & W4 --> Y["<b>Synthesize</b><br/>관점별 취합 (코드)"]
+    Y --> V{{"<b>Validate</b><br/>근거 충분한가 (LLM)"}}
+    V -- "부족 · 재시도 ≤1<br/>부족한 과제만" --> O
+    V -- "충분 / 상한 도달" --> R["<b>Report</b><br/>LLM 작성 + 인용·목차 검사(코드)"]
+    R --> J{{"<b>Quality Judge</b> (LLM)<br/>근거 연결 · 중립성<br/>편향 · 커버리지"}}
+    J -- "편향·커버리지 미달<br/>재조사 ≤1" --> O
+    J -- "근거 연결·중립성 미달<br/>재작성 ≤1" --> R
+    J -- "통과 / 상한 도달" --> P([PDF 보고서])

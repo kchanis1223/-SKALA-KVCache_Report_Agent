@@ -11,19 +11,18 @@ def test_readme_follows_the_presentation_template_without_external_setup():
         "Subject",
         "Overview",
         "Selected Technologies",
-        "Key Features",
+        "Features",
+        "Tech Stack",
         "Agents",
-        "Agent Model Strategy",
-        "RAG",
+        "State Schema",
         "Architecture",
-        "State Design",
-        "Differentiators",
-        "Report Highlights",
-        "Lessons Learned",
+        "Design Decisions",
         "Directory Structure",
         "Usage",
         "Contributors",
     ]
     assert "make run" in readme
+    for image in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", readme):
+        assert (README.parent / image).is_file(), image
     assert "API 키" not in readme
     assert "TAVILY_API_KEY" not in readme
