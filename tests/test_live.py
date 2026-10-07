@@ -107,8 +107,18 @@ def test_run_resumes_after_a_crash(resources, tmp_path, monkeypatch):
         with pytest.raises(RuntimeError, match="강제 중단"):
             app.invoke(initial_state(QUESTION, "live-resume"), config)
         assert app.get_state(config).next == ("validate",)
-        done_before = dict(app.get_state(config).values["node_status"])
-        state = app.invoke(None, config)
+        # 재개 후 실행되는 노드를 순서대로 기록합니다.
+        order = [
+            node
+            for chunk in app.stream(None, config, stream_mode="updates")
+            for node in chunk
+            if not node.startswith("__")
+        ]
+        state = app.get_state(config).values
     assert state["report"]
-    # 재개 전에 끝난 worker는 다시 실행되지 않아야 합니다.
-    assert all(done_before[k] == state["node_status"][k] for k in done_before if "-" in k)
+    # 끝난 worker를 다시 돌리지 않고 멈춘 지점(validate)부터 이어서 실행해야 합니다.
+    # 그 뒤 재시도로 worker가 다시 도는 것은 정상 동작입니다.
+    assert order[0] == "validate", order
+    assert order[-1] == "report", order
+    if state["retry_count"] == 0:
+        assert "worker" not in order, order

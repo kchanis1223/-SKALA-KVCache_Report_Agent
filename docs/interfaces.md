@@ -33,7 +33,7 @@ orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report
 | --- | --- | --- |
 | SubTask | id, agent, instruction | id는 영문·숫자·`-`·`_`만. agent는 domain / market / stakeholder / tech |
 | Source | id, kind, title, url, text, page | id는 `{task_id}-{w\|p}{n}`. text는 도구가 모델에게 보여준 원문 그대로 |
-| Finding | claim, source_id, quote | quote는 해당 Source.text의 연속된 부분(공백 차이만 허용) |
+| Finding | claim, source_id, quote | quote는 해당 Source.text의 연속된 부분(공백 차이만 허용). claim 400자·quote 500자를 넘으면 거부하지 않고 앞부분만 남김 |
 | WorkerResult | task_id, from, success, findings, verdict, error | 유효한 finding이 1개 이상이면 success |
 | Verdict | sufficient, feedback | feedback은 계획에 있는 task_id만 |
 

@@ -81,6 +81,14 @@ def test_quotes_must_be_verbatim_substrings_of_a_collected_source():
     assert valid == [ok, spaced] and dropped == [paraphrase, unknown]
 
 
+def test_long_quote_is_clipped_not_rejected_and_stays_verbatim():
+    text = "KV cache " * 200
+    finding = Finding(claim="긴 인용", source_id="s1", quote=text)
+    assert len(finding.quote) == 500
+    valid, _ = check_citations([finding], {"s1": source("s1", text)})
+    assert valid == [finding]
+
+
 # ── 분기 ──
 @pytest.mark.parametrize(
     "verdict, retries, expected",

@@ -6,7 +6,7 @@
 
 from typing import Annotated, Literal, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 Agent = Literal["domain", "market", "stakeholder", "tech"]
 AGENTS: tuple[Agent, ...] = ("domain", "market", "stakeholder", "tech")
@@ -22,6 +22,20 @@ MAX_RETRIES = 1
 def merge_dict(left: dict, right: dict) -> dict:
     """같은 키는 새 값으로 교체하고 나머지는 보존합니다."""
     return {**(left or {}), **(right or {})}
+
+
+def clipped(limit: int):
+    """LLM 출력 길이 상한. 넘으면 거부하지 않고 앞부분만 남깁니다.
+
+    인용(quote)은 원문의 앞부분을 잘라도 여전히 원문의 부분문자열이므로
+    인용 검사 규칙이 그대로 유지됩니다. 긴 인용 하나 때문에 worker 전체가
+    실패하지 않게 하려는 것입니다.
+    """
+
+    def clip(value):
+        return value.strip()[:limit] if isinstance(value, str) else value
+
+    return BeforeValidator(clip)
 
 
 class SubTask(BaseModel):
@@ -47,9 +61,9 @@ class Source(BaseModel):
 
 class Finding(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    claim: str = Field(min_length=1, max_length=400)
+    claim: Annotated[str, clipped(400), Field(min_length=1)]
     source_id: str
-    quote: str = Field(min_length=1, max_length=500)
+    quote: Annotated[str, clipped(500), Field(min_length=1)]
 
 
 class WorkerDraft(BaseModel):
@@ -57,7 +71,7 @@ class WorkerDraft(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     findings: list[Finding] = Field(default_factory=list, max_length=8)
-    verdict: str = Field(min_length=1, max_length=600)
+    verdict: Annotated[str, clipped(600), Field(min_length=1)]
 
 
 class WorkerResult(BaseModel):
