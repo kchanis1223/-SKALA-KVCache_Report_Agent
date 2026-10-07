@@ -16,7 +16,18 @@ AGENT_LABELS = {
     "stakeholder": "이해관계자",
     "tech": "기술평가",
 }
-MAX_RETRIES = 1
+MAX_RETRIES = 1  # validate → orchestrator 재시도
+MAX_REWRITES = 1  # judge → report 재작성
+MAX_RESEARCH = 1  # judge → orchestrator 재조사
+
+Criterion = Literal["groundedness", "neutrality", "bias", "coverage"]
+CRITERIA: tuple[Criterion, ...] = ("groundedness", "neutrality", "bias", "coverage")
+CRITERION_LABELS = {
+    "groundedness": "근거 연결",
+    "neutrality": "중립성",
+    "bias": "편향 통제",
+    "coverage": "관점 커버리지",
+}
 
 
 def merge_dict(left: dict, right: dict) -> dict:
@@ -92,6 +103,23 @@ class Verdict(BaseModel):
     feedback: dict[str, str] = Field(default_factory=dict)
 
 
+class CriterionCheck(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    passed: bool
+    reason: Annotated[str, clipped(400)]
+
+
+class Quality(BaseModel):
+    """judge 판정. action은 checks.judge_action이 코드로 정합니다."""
+
+    checks: dict[str, CriterionCheck] = Field(default_factory=dict)
+    action: Literal["done", "rewrite", "research"] = "done"
+    error: str | None = None
+
+    def failed(self) -> list[str]:
+        return [c for c in CRITERIA if c in self.checks and not self.checks[c].passed]
+
+
 class State(TypedDict, total=False):
     run_id: str
     question: str
@@ -102,6 +130,11 @@ class State(TypedDict, total=False):
     result: dict[str, list[WorkerResult]]
     verdict: Verdict | None
     retry_count: int
+    to_run: dict[str, str]  # 이번 회차에 실행할 task_id → 보완 피드백(첫 회차는 "")
+    cited_ids: list[str]  # REFERENCE 번호 순서의 source_id
+    quality: Quality | None
+    rewrite_count: int
+    research_count: int
     node_status: Annotated[dict[str, str], merge_dict]
     last_error: str | None
     report: str
@@ -118,6 +151,11 @@ def initial_state(question: str, run_id: str) -> State:
         "result": {},
         "verdict": None,
         "retry_count": 0,
+        "to_run": {},
+        "cited_ids": [],
+        "quality": None,
+        "rewrite_count": 0,
+        "research_count": 0,
         "node_status": {},
         "last_error": None,
         "report": "",

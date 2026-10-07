@@ -20,6 +20,7 @@
 
 - Return partial State updates; do not mutate shared State in parallel nodes.
 - Retry only the tasks the validator marked insufficient, at most once (`MAX_RETRIES = 1`).
+- The quality judge may send work back at most once per path: report rewrite (`MAX_REWRITES = 1`) and orchestrator research (`MAX_RESEARCH = 1`); routing is decided by `checks.judge_action`, not the LLM.
 - Keep plan limits (1–6 tasks, ≤2 per worker) and the 3-call tool limit per worker.
 - Only accept finding quotes that are verbatim substrings of collected sources.
 - Keep pending implementations visibly pending; never invent evidence or verdicts.

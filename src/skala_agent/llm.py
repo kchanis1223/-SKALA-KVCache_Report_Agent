@@ -14,6 +14,7 @@ EFFORTS = {
     "self_review": "low",
     "validator": "medium",
     "reporter": "medium",
+    "judge": "medium",
 }
 TIMEOUT_SECONDS = 180
 

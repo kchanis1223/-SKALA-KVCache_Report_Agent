@@ -14,7 +14,7 @@ from skala_agent.retrieval.factory import try_load_retriever
 from skala_agent.retrieval.indexing import DEFAULT_INDEX_DIR
 from skala_agent.tools import Resources
 from skala_agent.workflow.graph import build_graph, checkpoint_serde, run_config
-from skala_agent.workflow.state import initial_state
+from skala_agent.workflow.state import CRITERION_LABELS, initial_state
 
 DEFAULT_QUESTION = "데이터센터 LLM 서빙 도입 관점에서 TurboQuant와 ITME를 비교해줘"
 
@@ -78,6 +78,17 @@ def main(argv=None):
     path = args.output / f"report-{run_id}.md"
     path.write_text(state["report"], encoding="utf-8")
     print(f"[{run_id}] 보고서 생성: {path} (재시도 {state.get('retry_count', 0)}회)")
+    quality = state.get("quality")
+    if quality is None or quality.error:
+        verdict = "평가 못 함" + (f" ({quality.error})" if quality else "")
+    elif quality.failed():
+        verdict = "미달(" + ", ".join(CRITERION_LABELS[c] for c in quality.failed()) + ")"
+    else:
+        verdict = "통과"
+    print(
+        f"품질: {verdict} · 재작성 {state.get('rewrite_count', 0)}회"
+        f" · 재조사 {state.get('research_count', 0)}회"
+    )
     failed = [k for k, v in state["worker_results"].items() if not v.success]
     if failed:
         names = ", ".join(failed)

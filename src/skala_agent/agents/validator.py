@@ -33,7 +33,10 @@ def run(state):
     results = state.get("worker_results", {})
     payload = {
         "question": state["question"],
-        "retries_left": MAX_RETRIES - state.get("retry_count", 0),
+        # judge 재조사 뒤에는 다시 돌리지 않으므로 남은 재시도는 0입니다.
+        "retries_left": 0
+        if state.get("research_count", 0)
+        else MAX_RETRIES - state.get("retry_count", 0),
         "tasks": [
             {
                 "id": task.id,

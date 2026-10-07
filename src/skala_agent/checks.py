@@ -3,9 +3,13 @@
 import re
 from collections import Counter
 
+from langgraph.graph import END
+
 from skala_agent.workflow.state import (
     AGENTS,
+    MAX_RESEARCH,
     MAX_RETRIES,
+    MAX_REWRITES,
     Finding,
     Source,
     SubTask,
@@ -30,11 +34,17 @@ URL = re.compile(r"https?://\S+")
 
 
 # ── 계획 ──────────────────────────────────────────────────────────────
-def validate_plan(plan: list[SubTask], previous: list[SubTask] | None = None) -> list[str]:
+def validate_plan(
+    plan: list[SubTask],
+    previous: list[SubTask] | None = None,
+    allow_new_for_missing: bool = False,
+) -> list[str]:
     """계획 규칙 위반 목록을 돌려줍니다. 비어 있으면 통과입니다.
 
     previous가 있으면 재시도 계획입니다. 재시도는 기존 과제 id만 다시 지시할 수
-    있고, 맡은 worker를 바꿀 수 없습니다.
+    있고, 맡은 worker를 바꿀 수 없습니다. judge 재조사(allow_new_for_missing)는
+    계획에 빠진 관점에 한해 새 과제를 추가할 수 있고, 합친 계획도 전체 규칙을
+    지켜야 합니다.
     """
     errors = []
     ids = [task.id for task in plan]
@@ -48,14 +58,30 @@ def validate_plan(plan: list[SubTask], previous: list[SubTask] | None = None) ->
             errors.append(f"같은 worker는 최대 {MAX_PER_AGENT}번입니다: {', '.join(over)}")
         return errors
     original = {task.id: task for task in previous}
+    missing = set(missing_perspectives(previous))
     if not plan:
         errors.append("재시도 계획이 비어 있습니다.")
     for task in plan:
-        if task.id not in original:
+        if task.id in original:
+            if task.agent != original[task.id].agent:
+                errors.append(f"재시도에서 worker를 바꿀 수 없습니다: {task.id}")
+        elif not allow_new_for_missing:
             errors.append(f"재시도는 기존 과제만 가능합니다: {task.id}")
-        elif task.agent != original[task.id].agent:
-            errors.append(f"재시도에서 worker를 바꿀 수 없습니다: {task.id}")
+        elif task.agent not in missing:
+            errors.append(
+                f"새 과제는 계획에 빠진 관점만 가능합니다: {task.id}({task.agent}), "
+                f"빠진 관점: {', '.join(sorted(missing)) or '없음'}"
+            )
+    if allow_new_for_missing and not errors:
+        errors += validate_plan(merge_plan(previous, plan))
     return errors
+
+
+def merge_plan(previous: list[SubTask], update: list[SubTask]) -> list[SubTask]:
+    """같은 id는 교체하고 새 id는 뒤에 붙입니다."""
+    by_id = {task.id: task for task in update}
+    merged = [by_id.pop(task.id, task) for task in previous]
+    return merged + list(by_id.values())
 
 
 def default_plan(question: str) -> list[SubTask]:
@@ -106,9 +132,30 @@ def route_after_validate(state) -> str:
     verdict = state.get("verdict")
     if verdict is None or verdict.sufficient or state.get("retry_count", 0) >= MAX_RETRIES:
         return "report"
-    if not verdict.feedback:
-        return "report"
+    if not verdict.feedback or state.get("research_count", 0) >= 1:
+        return "report"  # judge 재조사 뒤에는 판정만 하고 다시 돌리지 않습니다.
     return "orchestrator"
+
+
+REWRITE_CRITERIA = frozenset({"groundedness", "neutrality"})  # 서술 문제 → 보고서 재작성
+RESEARCH_CRITERIA = frozenset({"bias", "coverage"})  # 근거 문제 → 재조사
+
+
+def judge_action(failed: list[str], rewrite_count: int, research_count: int) -> str:
+    """judge 미달 항목으로 다음 작업을 정합니다. 둘 다 미달이면 재조사가 우선입니다
+    (재조사 뒤 보고서를 어차피 다시 쓰기 때문). 예산을 다 쓰면 done."""
+    failed = set(failed)
+    if failed & RESEARCH_CRITERIA and research_count < MAX_RESEARCH:
+        return "research"
+    if failed and rewrite_count < MAX_REWRITES:
+        return "rewrite"
+    return "done"
+
+
+def route_after_judge(state) -> str:
+    quality = state.get("quality")
+    action = quality.action if quality is not None else "done"
+    return {"research": "orchestrator", "rewrite": "report"}.get(action, END)
 
 
 # ── 보고서 ────────────────────────────────────────────────────────────
@@ -129,6 +176,22 @@ def check_report(text: str, allowed_ids: set[str]) -> list[str]:
     if REFERENCE_HEADING in text:
         errors.append("REFERENCE는 코드가 생성합니다.")
     return errors
+
+
+def cited_order(text: str) -> list[str]:
+    """[S:id]가 처음 등장한 순서. REFERENCE 번호와 같습니다."""
+    return list(dict.fromkeys(CITATION.findall(text)))
+
+
+def add_limitations(report: str, notes: list[str]) -> str:
+    """'6. 한계점' 절 끝(REFERENCE 앞)에 bullet을 추가합니다."""
+    if not notes:
+        return report
+    bullets = "\n".join(f"- {note}" for note in notes)
+    head, sep, tail = report.partition("\n" + REFERENCE_HEADING)
+    if not sep:
+        return report.rstrip() + "\n" + bullets + "\n"
+    return head.rstrip() + "\n" + bullets + "\n" + sep + tail
 
 
 def attach_references(text: str, sources: dict[str, Source]) -> str:

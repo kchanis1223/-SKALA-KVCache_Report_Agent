@@ -1,7 +1,12 @@
 """오케스트레이터: 논문으로 기술을 파악하고, 필요한 worker와 지시를 정합니다.
 
-첫 호출은 전체 계획을, 재시도 호출은 validate가 부족하다고 한 과제만 다시
-계획합니다. 계획 규칙은 LLM이 아니라 checks.validate_plan이 강제합니다.
+세 가지 모드가 있습니다.
+- plan: 첫 계획. 전체 과제를 실행합니다.
+- replan: validate가 부족하다고 한 과제만 새 지시로 다시 실행합니다.
+- research: judge가 편향·관점 커버리지 미달로 돌려보낸 경우입니다. 빠진 관점은
+  새 과제로 추가하고, 편향은 기존 과제를 다른 출처로 다시 조사하게 합니다.
+계획 규칙은 LLM이 아니라 checks.validate_plan이 강제합니다. 어느 모드든
+이번 회차에 실행할 과제를 to_run에 적습니다.
 """
 
 import logging
@@ -9,9 +14,17 @@ import logging
 from pydantic import BaseModel, ConfigDict, Field
 
 from skala_agent.agents.common import DOMAIN, TECHNOLOGIES, as_json, load_prompt
-from skala_agent.checks import default_plan, validate_plan
+from skala_agent.checks import (
+    MAX_PER_AGENT,
+    MAX_TASKS,
+    RESEARCH_CRITERIA,
+    default_plan,
+    merge_plan,
+    missing_perspectives,
+    validate_plan,
+)
 from skala_agent.llm import get_model
-from skala_agent.workflow.state import SubTask
+from skala_agent.workflow.state import AGENT_LABELS, CRITERION_LABELS, SubTask
 
 logger = logging.getLogger(__name__)
 BRIEF_QUERIES = ("핵심 원리와 접근 방식", "실험 결과와 측정 조건", "한계와 적용 전제")
@@ -101,6 +114,7 @@ def plan(state, resources):
     return {
         "tech_brief": brief,
         "plan": tasks,
+        "to_run": {t.id: "" for t in tasks},
         "node_status": {"orchestrator": "done", **{t.id: "pending" for t in tasks}},
     }
 
@@ -146,11 +160,90 @@ def replan(state):
     return {
         "plan": [updated.get(task.id, task) for task in previous],
         "retry_count": state["retry_count"] + 1,
+        "to_run": {t.id: feedback[t.id] for t in redo},
         "node_status": {"orchestrator": "done", **{t.id: "pending" for t in redo}},
     }
 
 
+def _summary(state):
+    results = state.get("worker_results", {})
+    rows = []
+    for task in state["plan"]:
+        result = results.get(task.id)
+        sources = state.get("sources", {})
+        rows.append(
+            {
+                **task.model_dump(),
+                "success": bool(result and result.success),
+                "source_titles": sorted(
+                    {sources[f.source_id].title for f in result.findings if f.source_id in sources}
+                )
+                if result
+                else [],
+            }
+        )
+    return rows
+
+
+def _research_fallback(previous, missing, reason) -> list[SubTask]:
+    """LLM 재조사 계획이 규칙을 계속 어길 때: 빠진 관점을 한도 안에서 추가하고,
+    빠진 관점이 없으면 기존 과제 전체를 다른 출처로 다시 조사하게 합니다."""
+    room = MAX_TASKS - len(previous)
+    added = [
+        SubTask(id=f"{agent}-r1", agent=agent, instruction=f"이 관점에서 조사하라. {reason}")
+        for agent in missing[:room]
+    ]
+    if added:
+        return added
+    return [
+        task.model_copy(update={"instruction": f"{task.instruction}\n보완 요청: {reason}"})
+        for task in previous
+    ]
+
+
+def research(state):
+    previous = state["plan"]
+    quality = state["quality"]
+    issues = {c: quality.checks[c].reason for c in quality.failed() if c in RESEARCH_CRITERIA}
+    missing = missing_perspectives(previous)
+    messages = [
+        {"role": "system", "content": load_prompt("orchestrator_research")},
+        {
+            "role": "user",
+            "content": as_json(
+                {
+                    "question": state["question"],
+                    "quality_issues": {CRITERION_LABELS[c]: r for c, r in issues.items()},
+                    "current_plan": _summary(state),
+                    "missing_perspectives": {a: AGENT_LABELS[a] for a in missing},
+                    "limits": {"max_tasks": MAX_TASKS, "max_per_agent": MAX_PER_AGENT},
+                }
+            ),
+        },
+    ]
+    output, errors = _ask(
+        get_model("orchestrator"),
+        RetryPlan,
+        messages,
+        lambda o: validate_plan(o.tasks, previous, allow_new_for_missing=True),
+    )
+    reason = " / ".join(issues.values())
+    update = output.tasks if output and not errors else []
+    if errors or not update:
+        logger.warning("재조사 계획 규칙 위반, 기본 재조사로 대체: %s", errors)
+        update = _research_fallback(previous, missing, reason)
+    logger.info("judge 재조사 (%d개): %s", len(update), ", ".join(t.id for t in update))
+    return {
+        "plan": merge_plan(previous, update),
+        "to_run": {t.id: reason for t in update},
+        "node_status": {"orchestrator": "done", **{t.id: "pending" for t in update}},
+    }
+
+
 def run(state, resources):
+    quality = state.get("quality")
+    if quality is not None and quality.action == "research":
+        return research(state)
     if state.get("verdict") is not None and state["verdict"].feedback:
         return replan(state)
     return plan(state, resources)

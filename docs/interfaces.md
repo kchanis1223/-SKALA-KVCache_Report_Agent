@@ -5,9 +5,10 @@ v1(고정 4관점 fan-out, Assessment·Signal·Details 스키마)을 오케스�
 ## 흐름
 
 ```
-orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report → END
-     ▲                                                  │
-     └──────── 부족 & retry_count < 1 ───────────────────┘
+orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report → judge ─┬→ END
+     ▲  ▲                                               │      ▲          │
+     │  └──────── 부족 & retry_count < 1 ────────────────┘      └─ 재작성 ─┤ (근거 연결·중립성 미달, rewrite < 1)
+     └──────────────────── 재조사 (편향·커버리지 미달, research < 1) ──────┘
 ```
 
 ## State 읽기·쓰기 책임
@@ -23,9 +24,14 @@ orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report
 | result | dict[agent, list[WorkerResult]] | synthesize | 매 회차 전체 교체 |
 | verdict | Verdict | validate | 매 회차 전체 교체 |
 | retry_count | int | orchestrator(재계획) | +1, 최대 1 |
+| to_run | dict[task_id, str] | orchestrator | 매 회차 전체 교체. dispatch가 이 과제만 실행 |
+| cited_ids | list[str] | report | REFERENCE 번호 순서 |
+| quality | Quality \| None | judge | 매 회차 전체 교체 |
+| rewrite_count | int | judge | 재작성 결정 시 +1, 최대 1 |
+| research_count | int | judge | 재조사 결정 시 +1, 최대 1 |
 | node_status | dict[str, str] | 모든 노드 | 병합 Reducer. pending / done / failed / fallback |
 | last_error | str \| None | CLI | 실행이 예외로 멈췄을 때 기록 |
-| report | str | report | 최종 Markdown |
+| report | str | report, judge | 최종 Markdown. judge는 최종 미달 시 한계점에 항목을 추가 |
 
 ## 데이터 모양
 
@@ -36,6 +42,7 @@ orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report
 | Finding | claim, source_id, quote | quote는 해당 Source.text의 연속된 부분(공백 차이만 허용). claim 400자·quote 500자를 넘으면 거부하지 않고 앞부분만 남김 |
 | WorkerResult | task_id, from, success, findings, verdict, error | 유효한 finding이 1개 이상이면 success |
 | Verdict | sufficient, feedback | feedback은 계획에 있는 task_id만 |
+| Quality | checks, action, error | checks는 groundedness·neutrality·bias·coverage → {passed, reason}. action은 코드가 결정 |
 
 ## 코드가 강제하는 규칙 (`checks.py`)
 
@@ -44,12 +51,14 @@ orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report
 | 과제 1~6개, 같은 agent 최대 2개, id 중복 금지 | `validate_plan` | 위반 내용을 알려 1회 재요청 → 기본 계획(4관점 × 1) |
 | 재시도는 기존 id만, agent 변경 금지, 부족 판정 과제만 | `validate_plan(previous)` | 1회 재요청 → 기존 지시 + 보완점으로 대체 |
 | 인용은 수집한 원문의 부분문자열 | `check_citations` | 해당 finding 제거 |
-| 재시도 상한 1회, 보완 대상이 없으면 보고서로 | `route_after_validate` | 보고서로 이동 |
+| 재시도 상한 1회, 보완 대상이 없으면 보고서로, judge 재조사 뒤에는 재시도 없음 | `route_after_validate` | 보고서로 이동 |
+| judge 재조사는 빠진 관점만 새 과제 허용, 합친 계획도 1~6개·agent ≤ 2 | `validate_plan(allow_new_for_missing=True)` | 1회 재요청 → 빠진 관점 기본 과제 또는 기존 과제 + 보완점 |
+| 미달 항목별 경로: 편향·커버리지 → 재조사, 근거 연결·중립성 → 재작성. 둘 다면 재조사 우선. 각 1회 | `judge_action`, `route_after_judge` | 상한 소진 시 한계점에 기록하고 종료 |
 | 보고서 7개 목차 순서, 허용된 [S:id]만, URL 직접 표기 금지 | `check_report` | 1회 재작성 → 템플릿 보고서 |
 | REFERENCE는 실제 인용 순서대로 코드가 생성 | `attach_references` | 해당 없음 |
 
 ## 실행 관리
 
-- `recursion_limit=15`: 정상 경로는 최대 9 superstep(재시도 포함)입니다.
+- `recursion_limit=25`: 최악 경로(재시도 + 재조사 + 재작성)는 18 superstep입니다.
 - 체크포인트: `outputs/checkpoints.sqlite`. `skala-agent --resume <run_id>`가 마지막 체크포인트부터 이어서 실행합니다. 역직렬화는 `workflow.graph.checkpoint_serde()`의 허용 목록 타입만 받습니다.
-- worker 안의 예외(타임아웃, API 오류)는 그 과제만 `success=False`로 기록하고 진행합니다. 다른 노드의 예외는 실행을 멈추고 `last_error`를 남깁니다.
+- worker 안의 예외(타임아웃, API 오류)는 그 과제만 `success=False`로 기록하고 진행합니다. judge 실패는 통과로 처리하고 한계점에 "품질 평가를 수행하지 못함"을 남깁니다. 다른 노드의 예외는 실행을 멈추고 `last_error`를 남깁니다.

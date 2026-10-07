@@ -16,7 +16,13 @@ from skala_agent.checks import BODY_HEADINGS, REFERENCE_HEADING, quote_in_source
 from skala_agent.cli import build_resources
 from skala_agent.llm import load_env
 from skala_agent.workflow.graph import build_graph, checkpoint_serde, run_config
-from skala_agent.workflow.state import MAX_RETRIES, initial_state
+from skala_agent.workflow.state import (
+    CRITERION_LABELS,
+    MAX_RESEARCH,
+    MAX_RETRIES,
+    MAX_REWRITES,
+    initial_state,
+)
 
 pytestmark = pytest.mark.live
 QUESTION = "데이터센터 LLM 서빙 도입 관점에서 TurboQuant와 ITME의 비용과 SLA 위험을 비교해줘"
@@ -82,11 +88,24 @@ def test_retry_runs_at_most_once_and_only_for_insufficient_tasks(finished):
     assert state["retry_count"] <= MAX_RETRIES
     # 체크포인트 이력의 예약 작업에서 worker 실행 횟수를 셉니다.
     runs = Counter(task.name for snapshot in history for task in snapshot.tasks)["worker"]
-    planned = len(state["plan"])
-    if state["retry_count"] == 0:
+    planned = len(state["plan"])  # judge 재조사로 추가된 과제 포함
+    rounds = 1 + state["retry_count"] + state["research_count"]
+    if rounds == 1:
         assert runs == planned
     else:
-        assert planned < runs <= planned * 2  # 재시도는 부족한 과제만
+        assert planned < runs <= planned * rounds  # 다시 도는 회차는 일부 과제만
+
+
+def test_quality_judge_runs_within_limits_and_records_failures(finished):
+    state, _ = finished
+    quality = state["quality"]
+    assert quality is not None and quality.action == "done"
+    assert state["rewrite_count"] <= MAX_REWRITES and state["research_count"] <= MAX_RESEARCH
+    limits = state["report"].split("## 6. 한계점", 1)[1].split(REFERENCE_HEADING, 1)[0]
+    if quality.error:
+        assert "품질 평가를 수행하지 못함" in limits
+    for criterion in quality.failed():
+        assert f"품질 평가 미달: {CRITERION_LABELS[criterion]}" in limits
 
 
 def test_run_resumes_after_a_crash(resources, tmp_path, monkeypatch):
@@ -119,6 +138,6 @@ def test_run_resumes_after_a_crash(resources, tmp_path, monkeypatch):
     # 끝난 worker를 다시 돌리지 않고 멈춘 지점(validate)부터 이어서 실행해야 합니다.
     # 그 뒤 재시도로 worker가 다시 도는 것은 정상 동작입니다.
     assert order[0] == "validate", order
-    assert order[-1] == "report", order
+    assert order[-1] == "judge", order
     if state["retry_count"] == 0:
         assert "worker" not in order, order

@@ -1,7 +1,8 @@
 """report: LLM이 8개 목차로 보고서를 쓰고, 인용과 목차는 코드가 검사합니다.
 
 검사를 두 번 통과하지 못하면 템플릿 보고서로 대체합니다. 어느 쪽이든
-REFERENCE는 실제로 인용된 출처만으로 코드가 만듭니다.
+REFERENCE는 실제로 인용된 출처만으로 코드가 만듭니다. judge가 미달 판정을
+남겼으면(재작성 또는 재조사 후) 그 지적을 반영해 다시 씁니다.
 """
 
 import logging
@@ -13,10 +14,11 @@ from skala_agent.checks import (
     BODY_HEADINGS,
     attach_references,
     check_report,
+    cited_order,
     missing_perspectives,
 )
 from skala_agent.llm import get_model
-from skala_agent.workflow.state import AGENT_LABELS
+from skala_agent.workflow.state import AGENT_LABELS, CRITERION_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +101,13 @@ def template_report(state, reason: str) -> str:
     return "\n".join(lines)
 
 
+def _quality_feedback(state) -> dict[str, str]:
+    quality = state.get("quality")
+    if quality is None:
+        return {}
+    return {CRITERION_LABELS[c]: quality.checks[c].reason for c in quality.failed()}
+
+
 def run(state):
     sources = state.get("sources", {})
     allowed = {
@@ -122,6 +131,7 @@ def run(state):
                     "evidence": _evidence(state),
                     "limitations": _limitations(state),
                     "headings": list(BODY_HEADINGS),
+                    "previous_review": _quality_feedback(state),
                 }
             ),
         },
@@ -143,4 +153,8 @@ def run(state):
     if errors:
         body = template_report(state, errors[0])
     report = attach_references(body, sources)
-    return {"report": report, "node_status": {"report": "done" if not errors else "fallback"}}
+    return {
+        "report": report,
+        "cited_ids": cited_order(body),
+        "node_status": {"report": "done" if not errors else "fallback"},
+    }

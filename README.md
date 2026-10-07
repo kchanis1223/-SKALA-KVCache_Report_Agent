@@ -169,12 +169,17 @@ flowchart TD
     Y --> V{검증 · LLM}
     V -->|충분 또는 재시도 소진| R[보고서]
     V -->|부족 · retry < 1| O
-    R --> E([종료])
+    R --> J{품질 평가 · LLM}
+    J -->|편향·커버리지 미달 · 재조사 < 1| O
+    J -->|근거 연결·중립성 미달 · 재작성 < 1| R
+    J -->|통과 또는 상한 소진| E([종료])
 ```
 
 worker 내부는 `create_agent` ReAct 루프입니다. 도구는 `web_search`(Tavily)와 `paper_search`(bge-m3 색인)이고, `ToolCallLimitMiddleware`가 호출을 3회로 제한합니다. 끝나면 코드가 인용을 원문과 대조하고, LLM 자기검토 1회 뒤 한 번 더 대조합니다.
 
-판정(검증)은 LLM, 다음 경로와 재시도 상한은 `checks.route_after_validate`가 정합니다. 무한 루프는 `recursion_limit=15`로 한 번 더 막습니다.
+판정(검증)은 LLM, 다음 경로와 재시도 상한은 `checks.route_after_validate`가 정합니다.
+
+보고서가 나오면 judge가 4개 항목을 통과/미달로 판정합니다: 근거 연결(groundedness), 중립성(neutrality), 편향 통제(bias), 관점 커버리지(coverage). 어디로 되돌릴지는 `checks.judge_action`이 항목별로 정합니다. 서술 문제(근거 연결·중립성)는 보고서 재작성으로, 근거 문제(편향·커버리지)는 오케스트레이터 재조사로 보냅니다. 재조사에서는 계획에 빠진 관점을 새 과제로 추가할 수 있습니다. 재작성과 재조사는 각각 1회까지입니다. 끝까지 미달이면 한계점에 기록하고 종료합니다. 무한 루프는 `recursion_limit=25`로 한 번 더 막습니다.
 
 ---
 
@@ -191,7 +196,12 @@ worker_results  task_id → {from, success, findings[{claim, source_id, quote}],
 sources         source_id → 도구가 가져온 원문 (인용 검사의 기준)
 result          관점별로 묶은 worker 결과
 verdict         {sufficient, feedback: task_id → 보완점}
-retry_count     재시도 횟수 (최대 1)
+retry_count     validate 재시도 횟수 (최대 1)
+to_run          이번 회차에 실행할 task_id → 보완 피드백
+cited_ids       REFERENCE 번호 순서의 source_id
+quality         judge 판정 {checks: 항목 → {passed, reason}, action, error}
+rewrite_count   보고서 재작성 횟수 (최대 1)
+research_count  judge 재조사 횟수 (최대 1)
 node_status     노드·과제별 pending / done / failed
 last_error      중단 시 마지막 오류 (재개 안내용)
 report          최종 Markdown
