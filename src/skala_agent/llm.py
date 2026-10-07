@@ -31,9 +31,12 @@ def get_model(role: str) -> ChatOpenAI:
         raise ValueError(f"알 수 없는 역할: {role}")
     if not os.environ.get("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY가 필요합니다. .env 또는 환경변수에 설정하세요.")
+    # gpt-5 계열은 /v1/chat/completions에서 function tool과 reasoning effort를
+    # 함께 쓸 수 없어(400) Responses API(/v1/responses)를 사용합니다.
     return ChatOpenAI(
         model=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL),
-        reasoning_effort=EFFORTS[role],
+        use_responses_api=True,
+        reasoning={"effort": EFFORTS[role]},
         timeout=TIMEOUT_SECONDS,
         max_retries=2,
     )

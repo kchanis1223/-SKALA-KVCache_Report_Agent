@@ -42,6 +42,17 @@ def finished(resources, tmp_path_factory):
     return state, history
 
 
+def test_workers_actually_collect_evidence(finished):
+    """worker가 모두 실패해도 템플릿 보고서는 나오므로, 근거 수집 자체를 확인합니다."""
+    state, _ = finished
+    results = state["worker_results"].values()
+    errors = [r.error for r in results if not r.success]
+    assert any(r.success and r.findings for r in results), f"성공한 worker 없음: {errors}"
+    assert state["sources"], "수집된 출처 없음"
+    reference = state["report"].split(REFERENCE_HEADING, 1)[1]
+    assert "http" in reference, "보고서가 인용한 출처 없음"
+
+
 def test_report_has_all_sections_and_only_registered_citations(finished):
     state, _ = finished
     report = state["report"]

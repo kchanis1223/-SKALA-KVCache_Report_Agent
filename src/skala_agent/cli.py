@@ -78,4 +78,7 @@ def main(argv=None):
     path = args.output / f"report-{run_id}.md"
     path.write_text(state["report"], encoding="utf-8")
     print(f"[{run_id}] 보고서 생성: {path} (재시도 {state.get('retry_count', 0)}회)")
-    return state
+    failed = [k for k, v in state["worker_results"].items() if not v.success]
+    if failed:
+        names = ", ".join(failed)
+        print(f"실패한 과제 {len(failed)}개: {names} (보고서 한계점 참고)", file=sys.stderr)
