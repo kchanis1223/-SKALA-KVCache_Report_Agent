@@ -356,7 +356,7 @@ confidence를 low로 표시합니다. 지지하는 근거를 찾지 못하면 �
 │   ├── tools.py           # web_search · paper_search
 │   ├── llm.py             # 역할별 모델
 │   └── cli.py             # 실행 진입점
-├── outputs/               # report-{run_id}.md, checkpoints.sqlite
+├── outputs/               # report-{run_id}.pdf, checkpoints.sqlite
 └── tests/                 # 단위 테스트 + live 테스트
 ```
 

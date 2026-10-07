@@ -10,6 +10,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 from skala_agent.integrations.tavily import TavilySearch
 from skala_agent.llm import load_env
+from skala_agent.pdf import markdown_to_pdf
 from skala_agent.retrieval.factory import try_load_retriever
 from skala_agent.retrieval.indexing import DEFAULT_INDEX_DIR
 from skala_agent.tools import Resources
@@ -75,8 +76,7 @@ def main(argv=None):
             print(f"이어서 실행: uv run skala-agent --resume {run_id}", file=sys.stderr)
             raise SystemExit(1) from exc
 
-    path = args.output / f"report-{run_id}.md"
-    path.write_text(state["report"], encoding="utf-8")
+    path = markdown_to_pdf(state["report"], args.output / f"report-{run_id}.pdf")
     print(f"[{run_id}] 보고서 생성: {path} (재시도 {state.get('retry_count', 0)}회)")
     quality = state.get("quality")
     if quality is None or quality.error:

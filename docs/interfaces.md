@@ -59,6 +59,8 @@ orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report
 
 ## 실행 관리
 
+- 출력: State의 `report`는 Markdown이고, CLI가 마지막에 `skala_agent.pdf.markdown_to_pdf`로 `outputs/report-{run_id}.pdf`를 만듭니다. 한글 글꼴은 `REPORT_FONT` → macOS AppleGothic → NanumGothic 순으로 찾아 PDF에 포함합니다.
+
 - `recursion_limit=25`: 최악 경로(재시도 + 재조사 + 재작성)는 18 superstep입니다.
 - 체크포인트: `outputs/checkpoints.sqlite`. `skala-agent --resume <run_id>`가 마지막 체크포인트부터 이어서 실행합니다. 역직렬화는 `workflow.graph.checkpoint_serde()`의 허용 목록 타입만 받습니다.
 - worker 안의 예외(타임아웃, API 오류)는 그 과제만 `success=False`로 기록하고 진행합니다. judge 실패는 통과로 처리하고 한계점에 "품질 평가를 수행하지 못함"을 남깁니다. 다른 노드의 예외는 실행을 멈추고 `last_error`를 남깁니다.
