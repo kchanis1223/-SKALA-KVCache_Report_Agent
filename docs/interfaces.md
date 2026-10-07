@@ -1,179 +1,55 @@
-# State / Agent I/O 계약 v1
+# State / Agent I/O 계약 v2 (오케스트레이터 구조)
 
-[이슈 #1](https://github.com/kchanis1223/-SKALA-KVCache_Report_Agent/issues/1)의 김강휘·윤소영·김동찬 의견을 통합한 구현 계약입니다. 댓글에 선택지로 남아 있던 부분은 아래 기준으로 정리했습니다. 코드의 기준은 `src/skala_agent/schemas.py`이며, 독립 개발용 예제는 `tests/fixtures/contracts.json`입니다. fixture의 판정·출처는 모두 테스트용입니다.
+v1(고정 4관점 fan-out, Assessment·Signal·Details 스키마)을 오케스트레이터 구조로 단순화한 계약입니다. 코드 기준은 `src/skala_agent/workflow/state.py`, 규칙 기준은 `src/skala_agent/checks.py`입니다.
 
-## 댓글 반영 결정
+## 흐름
 
-| 안건 | 구현 계약 |
-| --- | --- |
-| verdict / reason / confidence / evidence 공통 형식 | `Assessment` + 중앙 `Evidence` 목록. `reason`은 `rationale`, `evidence_text`는 `excerpt`의 입력 alias로 허용. 저장·출력은 기존 canonical 이름 사용 |
-| 관점별 State 분리 | `analyses["trl" / "market" / "stakeholder" / "domain"]` 유지. 각 값은 두 기술의 `list[Assessment]` |
-| 같은 Evidence ID 재수집 | 새 ID를 만들지 않고 같은 ID의 최신 값으로 교체. 반대 주장은 다른 ID |
-| 한 관점 실패 | `status="failed"` + `AgentError`. 나머지 관점은 보존하고 실패는 보고서 한계점에 명시 |
-| 추가 검색 정보 | `MissingEvidence.kind`, `claim`, `queries`, `evidence_ids`, `retryable` 추가 |
-| 기술 조사 출력 | 기술 ID → `TechAnalysis` 구조화 결과 |
-| Chunk ID | `{paper_id}-p{page}-{sequence}`, page와 페이지 내 sequence는 1부터 |
-| 청킹 설정 | 초기 v1 기준: BGE-M3 tokenizer, 1,500 tokens, overlap 200. 페이지 경계를 넘지 않음 |
-| 검색 점수 | `RetrievalResult(chunk, score, score_type, dense_score?, sparse_score?)`. Chunk 자체에는 점수를 저장하지 않음 |
-| 논문 인용 역추적 | `Evidence.chunk_id` 추가. 웹 근거는 null |
-
-청킹 수치는 댓글에 명시되지 않아 이번 통합의 초기 기본값으로 정했습니다. `retrieval/config.py`의 `DEFAULT_CHUNKING`을 사용하며, 파서·tokenizer revision·전처리·청킹 설정 변경 시 버전, 인덱스, 정답 평가셋을 함께 갱신합니다. 원문 PDF와 tokenizer revision은 실제 수집 시 인덱스 manifest에 기록합니다.
+```
+orchestrator ─Send→ worker × N → synthesize → validate ─┬→ report → END
+     ▲                                                  │
+     └──────── 부족 & retry_count < 1 ───────────────────┘
+```
 
 ## State 읽기·쓰기 책임
 
-| key | 타입 | 생성 / 수정 주체 | 갱신 규칙 |
+| key | 타입 | 쓰는 노드 | 갱신 규칙 |
 | --- | --- | --- | --- |
-| selected_technologies | list[Technology] | 입력 / CLI | 실행 중 고정 |
-| domain | str | 입력 / CLI | 실행 중 고정 |
-| tech_analysis | dict[str, TechAnalysis] | research | 기술별 조사 결과 |
-| analyses | dict[str, list[Assessment]] | evaluate | 관점별 분리 쓰기, 같은 관점의 재실행은 교체 |
-| evidence | list[Evidence] | research / evaluate / additional_search; 향후 의미 검증자 | ID 기준 upsert |
-| run_mode | Literal["demo", "real"] | initial_state | 실행 모드. 보고서가 제목·안내·한계점을 고를 때 사용하며 근거 수로 추측하지 않음 |
-| synthesis | list[Assessment] | synthesize / validate | 취합 후 confidence 정규화 |
-| synthesis_findings | list[SynthesisFinding] | synthesize | 설계서 4-7의 다섯 질문으로 탐지한 근거 연결 상충·trade-off |
-| missing_evidence | list[MissingEvidence] | validate | 검증 회차마다 전체 교체 |
-| retry_count | int | additional_search | 실제 추가 검색 회차마다 +1, 최대 2 |
+| run_id | str | CLI | 실행 중 고정. 체크포인트 thread_id, LangSmith metadata, 보고서 파일명 |
+| question | str | CLI | 실행 중 고정 |
+| tech_brief | str | orchestrator | 첫 계획 때 1회 |
+| plan | list[SubTask] | orchestrator | 첫 계획은 전체, 재시도는 같은 id의 instruction만 교체 |
+| worker_results | dict[task_id, WorkerResult] | worker | 병합 Reducer. 자기 task_id만 쓰고 재시도는 덮어씀 |
+| sources | dict[source_id, Source] | worker | 병합 Reducer. finding이 인용한 출처만 |
+| result | dict[agent, list[WorkerResult]] | synthesize | 매 회차 전체 교체 |
+| verdict | Verdict | validate | 매 회차 전체 교체 |
+| retry_count | int | orchestrator(재계획) | +1, 최대 1 |
+| node_status | dict[str, str] | 모든 노드 | 병합 Reducer. pending / done / failed / fallback |
+| last_error | str \| None | CLI | 실행이 예외로 멈췄을 때 기록 |
 | report | str | report | 최종 Markdown |
 
-모든 노드는 공유 State를 직접 수정하지 않고 변경분만 반환합니다. 병렬 평가 노드는 자신의 관점만 `analyses`에 쓰며 다른 관점의 기존 값은 반환하지 않습니다.
+## 데이터 모양
 
-## Agent / Provider I/O
-
-| 단계 | 읽는 입력 | 출력 / 계약 |
+| 모델 | 필드 | 규칙 |
 | --- | --- | --- |
-| 기술 조사 | selected_technologies | `research(technologies) -> (dict[str, TechAnalysis], list[Evidence])` |
-| 관점별 평가 | perspective, technologies, domain, tech_analysis, evidence | `assess(...) -> (list[Assessment], list[Evidence])` |
-| 중간 종합 | analyses, evidence | 규칙 기반 `synthesis`와 `synthesis_findings`. 모델 호출 없음 |
-| 검증 | synthesis, evidence | provider의 `validate_evidence(evidence) -> list[Evidence]`로 지지 여부를 갱신한 뒤 정규화한 synthesis와 missing_evidence 반환 |
-| 추가 검색 | retryable인 missing_evidence | `search_missing(missing) -> list[Evidence]`, graph에서 retry_count 갱신. 부족 항목을 `(technology_id, perspective)`로 묶어 그룹당 최대 2질의. 그룹 간에 예산을 빌려주지 않고, 예산을 넘긴 항목은 미해결로 남음 |
-| 최종 종합 | 검증된 synthesis, evidence, missing_evidence | 종료 직전 LLM 종합 1회 및 생성 문장 지지 검사. `synthesis_findings`만 갱신 |
-| 보고서 | synthesis, synthesis_findings, evidence, missing_evidence, 입력 기술·도메인, retry_count | 결정적 Markdown 생성 후 LLM 본문 다듬기 및 의미 검사. 외부 검색 없음 |
+| SubTask | id, agent, instruction | id는 영문·숫자·`-`·`_`만. agent는 domain / market / stakeholder / tech |
+| Source | id, kind, title, url, text, page | id는 `{task_id}-{w\|p}{n}`. text는 도구가 모델에게 보여준 원문 그대로 |
+| Finding | claim, source_id, quote | quote는 해당 Source.text의 연속된 부분(공백 차이만 허용) |
+| WorkerResult | task_id, from, success, findings, verdict, error | 유효한 finding이 1개 이상이면 success |
+| Verdict | sufficient, feedback | feedback은 계획에 있는 task_id만 |
 
-기본 real CLI의 `TimeoutProvider`는 synthesis/report/validation 모델을 시간 제한이 있는
-proxy로 전달합니다. 각 최종 단계 모델 호출도 provider timeout의 적용을 받습니다.
-최종 종합은 확정 가능한 평가와 연결된 검증 근거만 입력하며 ID/기술/평가 연결을 검사한 뒤
-validation 모델로 생성 summary의 지지를 확인합니다. 실패하면 해당 LLM 출력을 버리고
-로그에 명시하며 규칙 결과를 유지합니다. 최종 단계는 검증이 정규화한 synthesis를 덮지 않습니다.
-보고서 LLM은 목차·인용·참고문헌·판정 목록·수치·보류 문장을 보존해야 하고, 수정된 서술은
-validation 모델로 기존 검증 보고서와 대조합니다. 검사 실패나 timeout이면 명시적으로
-실행을 중단하며 미검증 본문을 저장하지 않습니다. 의미 검사는 LLM 판정이므로 완전한
-사실성 보장은 아닙니다. demo와 `USE_SINGLE_MODEL=true`의 결정적 경로는 유지합니다.
-실 API 테스트는 `RUN_LIVE_LLM_TESTS=1`과 API 키가 둘 다 있을 때만 실행합니다.
+## 코드가 강제하는 규칙 (`checks.py`)
 
-각 `assess()` 호출은 선택된 기술마다 정확히 하나의 결과를 반환해야 합니다. 기술 ID와 관점이 다르거나 빠지면 계약 오류입니다. `research()`도 선택된 기술 전체를 키로 반환하며, 키와 `TechAnalysis.technology_id`가 일치해야 합니다. Provider 경계에서 Pydantic으로 dict를 검증할 수 있지만 반환 계약은 해당 모델 기준입니다.
-
-`TechAnalysis`는 overview, scope, limitations, experiments(측정값·실험 조건 서술), evidence_ids, status를 갖습니다. 페이지·URL·원문은 연결된 Evidence에 보관합니다. 문자열 하나만 반환하던 provider는 이 모델로 변경해야 합니다.
-
-## 평가 출력
-
-- `Assessment`: technology_id, perspective, verdict, rationale, confidence, signals, evidence_ids, status, error, details.
-- `signals`: 질문별 question, grade(상/중/하), evidence_ids.
-- `status`: pending(미구현/근거 부족), assessed(평가 완료), failed(실행 실패).
-- `failed`에는 error가 필수이고 다른 상태에는 error를 넣지 않습니다. failed는 verdict를 판단 보류, confidence를 low로 정규화합니다.
-- `details`는 perspective로 구분하는 union입니다. pending 및 기존 provider 호환을 위해 null을 허용하며, 실제 평가 provider는 해당 관점의 세부 결과를 채웁니다.
-
-| details 타입 | 필드 |
-| --- | --- |
-| TRLDetails | level: 1~9 또는 null |
-| MarketDetails | demand, adoption, ecosystem: 설계서 축별 등급 또는 null; dependency_risks |
-| StakeholderDetails | positions: gpu_vendor / memory_vendor / cloud_operator / open_source / investor별 stance·rationale·evidence_ids; overall |
-| DomainDetails | cost, sla_risk, operations: 설계서 축별 등급 또는 null; operational_risks |
-
-미확인 축은 null, 이해관계자 자료 없음은 명시적인 stance로 표현합니다. details의 perspective는 상위 Assessment와 일치해야 합니다. 축별 질문·집계는 #5/#6 평가 구현에, 관점별 완성도·5개 주체·근거 참조 검증은 #7의 EvaluationOutput에 적용되어 있습니다. 검증된 고유 URL이 2개 미만인 결과는 검증 단계에서 confidence=low가 됩니다.
-
-## Evidence ID와 검증 책임
-
-Evidence 발급 주체는 근거를 생성하는 research / 각 평가 provider입니다. 공통 `evidence.evidence_id()`에 owner(research 또는 관점), technology_id, claim, 정규화 URL, chunk_id를 넘깁니다. 동일 입력은 같은 SHA-256 기반 ID를 반환하며 재시도 횟수·점수·supports_claim은 ID에 포함하지 않습니다. 기존 근거를 보완하는 search_missing은 전달받은 evidence_ids를 유지합니다.
-
-- 한 owner만 같은 ID를 갱신합니다. 관점 간 동일 원문을 사용해도 owner namespace가 달라 병렬 쓰기가 섞이지 않습니다.
-- ID가 같으면 excerpt·confidence·supports_claim 등의 최신 값으로 교체합니다. 지지가 철회된 False도 이전 True를 대체합니다.
-- 같은 ID에서 기술·주장·URL·chunk_id를 바꾸면 충돌 오류입니다. 새로운 주장 또는 출처에는 새 ID를 발급합니다.
-- `supports_claim`은 기본 False. 출처 수집 담당자는 검색 성공만으로 True로 설정하지 않습니다. 검증 provider는 원문 발췌와 주장을 비교해 지지·중립성을 판정하고 동일 ID Evidence 업데이트를 반환합니다.
-- validation은 현재 Assessment·Signal, TechAnalysis, SynthesisFinding이 참조하는 근거만 provider에 전달합니다. 미사용 검색 후보·과거 근거는 State에 보존하고 나중에 참조될 때 검증합니다.
-- 실제 provider는 최대 8건·사용자 JSON 12,000 UTF-8 bytes의 배치와 메모리 캐시를 사용합니다. 동일한 검증 내용의 True/False 모두 재사용하며, 주장·발췌·출처·기술 또는 모델 객체/설정·프롬프트·응답 스키마가 바뀌면 다시 검증합니다. ID별 결과를 매핑하고 누락·중복·알 수 없는 ID, 불리언이 아닌 판정은 거부합니다. 상세 제한과 호출 수 측정은 [#52 문서](issue-52-validation-cost.md)를 참고하세요.
-- validation은 provider 업데이트와 Assessment·Signal 참조 관계를 함께 검사합니다. provider가 없거나 demo 모드이면 기존 플래그만 검사합니다.
-보고서 4장과 5장은 같은 유효성 규칙을 씁니다. 결론을 확정하지 않는 조건은 넷입니다. (1) `status`가 `assessed`가 아님(pending·failed), (2) 그 기술의 검증된 출처가 하나도 없음, (3) Signal이 있는데 지지되는 Signal이 하나도 없음, (4) Assessment 전체에 대한 부족 항목이 남아 있음. 부족 항목은 `claim`이 `verdict`(또는 실패 시 `rationale`)와 같으면 Assessment 전체 부족, 질문 텍스트면 Signal 단위 부족입니다. **일부 질문만 부족한 경우 판정을 지우지 않고 부족 질문을 함께 표시합니다.** 같은 (기술, 관점)에 부족 사유가 여러 개면 모두 남깁니다.
-
-- 보고서는 최종 Assessment가 참조하고 supports_claim=True인 해당 기술의 근거만 인용합니다. URL dedup은 독립된 출처라는 보장은 아닙니다.
-
-## 종합 결과
-
-`SynthesisFinding`은 `technology_id`, 설계서 4-7 질문(`quality_stability`, `resource_cost`, `operational_complexity`, `maturity_adoption`, `condition_limited`), 요약, `assessment_refs`, `evidence_ids`를 갖습니다. 근거가 연결되지 않은 상충 후보는 결과에 넣지 않습니다. 현재 rule 기반 탐지는 Assessment에 명시된 조건·trade-off와 구조화된 TRL/시장성 세부 결과만 사용하며, 원문 의미 지지 판정은 Evidence를 만든 검증 컴포넌트가 `supports_claim`으로 반영합니다.
-
-## RAG 반환과 점수
-
-`VectorStore.search()`와 `Retriever.retrieve()` 모두 `list[RetrievalResult]`를 반환합니다. 둘 다 top_k, role, paper_id 필터를 지원합니다. 기술 조사는 role=primary, 도메인은 role 제한 없이 독립 검토 자료를 포함합니다.
-
-`score`는 높을수록 관련성이 높고 NaN/무한대는 허용하지 않습니다. score_type은 dense/sparse/hybrid/rrf이며 서로 다른 방식의 점수를 같은 threshold로 비교하지 않습니다. 벡터 DB가 distance를 주면 adapter에서 similarity 방향으로 변환해야 합니다. hybrid 방식의 정규화·가중치는 인덱스/실험 설정에 기록합니다. dense_score와 sparse_score로 융합 실험을 역추적할 수 있습니다.
-
-김동찬의 검색 평가에서는 `result.chunk.id`를 순위대로 추출하여 기존 retrieval_metrics에 전달합니다. Chunk 필드는 id, text, paper_id, camp, role, section, page, source_url입니다. score는 질의마다 달라지므로 Chunk에 넣지 않습니다.
-
-## 부족 근거와 실패 / 재실행
-
-`MissingEvidence` 필수 필드: technology_id, perspective, reason, kind, claim, queries(최소 한 개). 선택 필드: evidence_ids, retryable(기본 True).
-
-| kind | 의미 |
-| --- | --- |
-| not_evaluated | 아직 평가되지 않음 |
-| missing_source | 평가했지만 출처가 없음 |
-| unsupported_claim | 참조 ID가 없거나 다른 기술이거나 지지가 확인되지 않음 |
-| agent_failed | 평가 서비스 호출 실패 |
-
-validator는 signals의 조사 질문을 우선 사용해 기술·관점이 포함된 검색 질의를 만듭니다. 질문이 없으면 판정 또는 미완료 이유를 사용합니다. 실제 도메인별 질의 정교화는 검증/검색 Agent에서 확장합니다.
-
-평가 provider의 TimeoutError / ConnectionError는 해당 관점의 두 기술을 failed로 변환합니다. 실제 SDK adapter는 이에 해당하는 오류를 표준 예외로 변환하거나 명시적 failed Assessment를 반환해야 합니다. raw exception 메시지는 보고서에 넣지 않습니다. `AgentError.retryable=False`이면 해당 부족 항목은 재검색하지 않습니다. 재평가는 retryable인 `(perspective, technology_id)` 쌍만 대상으로 하며, 한 기술만 부족하면 같은 관점의 다른 기술은 다시 평가하지 않습니다. 부분 재평가 결과는 evaluate 노드가 관점 안에서 기술 키로 병합해, 재평가하지 않은 기술의 판정과 근거를 보존합니다.
-
-재검색은 최대 2회입니다. 성공한 관점은 보존하고, 미해결·실패 관점은 판단 보류 및 6장 한계점에 표시합니다. malformed output / ValueError 등 계약·프로그래밍 오류는 숨기지 않고 실행을 중단합니다. 공통 기술 조사·추가 검색 자체의 서비스 오류 처리, 네트워크 backoff, checkpoint는 #10의 후속 범위입니다.
-
-## 실행 모드와 provider 주입
-
-`build_graph(provider)`에 주입할 provider는 `skala_agent.runtime.load_provider(mode, timeout=...)`가 고릅니다.
-
-| mode | provider | 외부 호출 |
+| 규칙 | 함수 | 위반 시 |
 | --- | --- | --- |
-| `demo` (기본) | `DemoProvider` | 없음. API 키·모델 다운로드 불필요 |
-| `real` | `skala_agent.adapters.build_provider()` | 있음 |
+| 과제 1~6개, 같은 agent 최대 2개, id 중복 금지 | `validate_plan` | 위반 내용을 알려 1회 재요청 → 기본 계획(4관점 × 1) |
+| 재시도는 기존 id만, agent 변경 금지, 부족 판정 과제만 | `validate_plan(previous)` | 1회 재요청 → 기존 지시 + 보완점으로 대체 |
+| 인용은 수집한 원문의 부분문자열 | `check_citations` | 해당 finding 제거 |
+| 재시도 상한 1회, 보완 대상이 없으면 보고서로 | `route_after_validate` | 보고서로 이동 |
+| 보고서 7개 목차 순서, 허용된 [S:id]만, URL 직접 표기 금지 | `check_report` | 1회 재작성 → 템플릿 보고서 |
+| REFERENCE는 실제 인용 순서대로 코드가 생성 | `attach_references` | 해당 없음 |
 
-`real`인데 adapter가 없으면 `demo`로 되돌아가지 않고 `ProviderUnavailableError`로 종료합니다. adapter 구현체는 `Provider` 프로토콜을 만족하는 객체를 인자 없이 반환해야 합니다.
+## 실행 관리
 
-`timeout`(CLI `--timeout`, 기본 120초)을 주면 provider를 `TimeoutProvider`로 감쌉니다. 호출 1건이 상한을 넘으면 `TimeoutError`가 되어 해당 관점만 `failed`로 남습니다. 파이썬은 실행 중인 스레드를 취소할 수 없으므로, 호출을 실제로 중단하려면 adapter가 HTTP 요청 수준의 타임아웃을 함께 걸어야 합니다. 한 관점에서 상한을 넘긴 호출이 2건 쌓이면 그 관점의 남은 재평가는 기다리지 않고 즉시 실패시킵니다.
-
-CLI는 `--graph`(컴파일된 그래프를 mermaid로 출력), `--dry-run`(외부 호출 없이 예상 호출 횟수), `--verbose`(단계별 진행 로그)를 제공합니다.
-
-## 공동 fixture와 검증
-
-`tests/fixtures/contracts.json`에 chunk, 점수 포함 검색 결과, evidence, tech_analysis, 정상 Assessment, pending Assessment, failed Assessment, MissingEvidence가 있습니다. 모두 실제 논문과 무관한 합성 데이터입니다. `make test`는 JSON round-trip, ID 중복 교체·철회, 관점별 실패·복구, 검색 점수 및 청킹 설정을 검사합니다.
-
-기존 provider 수정 사항: tech_analysis 문자열 → TechAnalysis, 검색 Chunk 목록 → RetrievalResult 목록, MissingEvidence 생성 시 kind/claim/queries 지정. 기존 rationale/excerpt 이름은 유지됩니다. 상세 schema와 설명은 이 문서를 기준으로 개발하고, 과거 설계서의 operator.add 및 별도 *_analysis 키는 참고 이력으로만 봅니다.
-
-## 공통 모델 배정
-
-`ModelRouter.for_agent(name)`을 사용합니다. research/additional_search/trl/market/stakeholder/domain은 Qwen3-4B/Ollama, synthesis/validation/report는 GPT-5.4mini를 사용합니다. `USE_SINGLE_MODEL=true`이면 모든 역할이 같은 Qwen3-4B 객체를 사용합니다. 이슈 #5의 `adapters.build_provider()`가 real runtime에 연결되며 다른 Agent는 후속 구현에서 이 배정 API를 사용합니다. 모델 설정·실행 방법은 [실행 안내](issue-5-evaluation.md)를 참고하세요.
-
-## 이해관계자·도메인 구현 (#6)
-
-`EvaluationProvider(..., retriever=None)` 및 `build_provider(retriever=...)`로 도메인 논문 검색을 주입합니다. 도메인은 role/paper_id 제한 없이 검색하며 primary와 독립 reference를 포함합니다. 미연결 시 결과 rationale에 명시합니다. 이해관계자는 웹검색을 사용합니다. 공유 State와 Assessment/Evidence schema는 그대로 유지하며, 수치·실험 조건은 rationale과 연결된 Evidence 원문·페이지·chunk_id로 보존합니다. 자세한 집계 및 검증 범위는 [#6 실행 안내](issue-6-evaluation.md)를 참고하세요.
-
-## 공통 평가 경계 검증 (#7)
-
-`evaluation_contracts.EvaluationOutput`이 평가와 Evidence를 함께 검사합니다. 실제 EvaluationProvider는 선택 기술·관점 일치, 참조 존재·기술 일치, 세부 근거 포함 관계, assessed 축 완성도, 5개 주체와 집계 일관성을 검증하고 고유 참조 URL이 2개 미만이면 confidence를 low로 제한합니다. pending도 low입니다. 평가 관련 모델의 알 수 없는 필드와 공백만 있는 필수 문자열은 거부합니다. 기존 tuple 반환·State·입력 alias는 유지합니다. [상세 계약 및 예제](issue-7-evaluation-schema.md)를 참고하세요.
-
-## 실제 모드의 논문 RAG 연결 (#35)
-
-`build_provider()`는 `RAG_INDEX_DIR`(기본 `index/bge-m3`)의 색인을 자동으로 읽어
-기술 조사와 도메인 평가에 같은 Retriever를 주입합니다. runtime과 `skala-evaluate`도
-이 factory를 사용합니다. 명시적으로 `retriever=None`을 전달하면 자동 로딩을 끕니다.
-색인이 없으면 기술 조사는 미연결 사유가 있는 pending, 도메인은 기존 웹 경로를 사용합니다.
-손상된 색인·임베딩 설정 오류는 색인 없음으로 숨기지 않습니다. demo는 색인을 읽지 않습니다.
-
-`EvaluationProvider.research()`는 `role=primary, paper_id=technology.id`로 네 조사
-질문을 검색하고, research 모델(기본 4B)로 개요·범위·한계·실험 조건을 추출합니다.
-현재 문서 설정의 primary paper_id는 기술 ID(turboquant / itme)와 같습니다.
-출처 ID와 연속 원문 인용을 검사한 항목만 TechAnalysis와 Evidence에 넣고, 확인할 수
-없는 항목은 비워 둡니다. 참고문헌 section은 하드 필터하지 않습니다.
-Evidence의 chunk_id/page/URL/section을 보존하고 supports_claim은 False로 시작합니다.
-
-보고서는 TechAnalysis가 참조한 모든 근거의 지지가 검증된 경우에만 기술 조사 내용을
-게시합니다. 일부 필드의 지지만으로 미검증 필드까지 공개하지 않습니다.
-조사 전체가 보류되어도 개별 지지가 검증된 논문 근거는 별도 관측으로 구분해 게시합니다.
-논문 참고문헌에는 원문 발췌, page, chunk_id를 함께 출력합니다.
+- `recursion_limit=15`: 정상 경로는 최대 9 superstep(재시도 포함)입니다.
+- 체크포인트: `outputs/checkpoints.sqlite`. `skala-agent --resume <run_id>`가 마지막 체크포인트부터 이어서 실행합니다. 역직렬화는 `workflow.graph.checkpoint_serde()`의 허용 목록 타입만 받습니다.
+- worker 안의 예외(타임아웃, API 오류)는 그 과제만 `success=False`로 기록하고 진행합니다. 다른 노드의 예외는 실행을 멈추고 `last_error`를 남깁니다.

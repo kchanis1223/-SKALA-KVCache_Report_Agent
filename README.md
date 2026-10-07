@@ -17,30 +17,26 @@
 
 * **Objective:** KV cache 최적화 기술을 복수 관점에서 중립적으로 비교 평가
 * **Domain:** 데이터센터 · 클라우드 LLM Serving
-* **Method:** Multi-Agent + Agentic RAG
-* **Framework:** LangGraph
-* **Local LLM:** Qwen3-4B / Ollama
+* **Method:** Orchestrator-Workers + Agentic RAG
+* **Framework:** LangGraph, LangChain `create_agent`
+* **LLM:** GPT-5.4 mini (역할별 reasoning effort)
 * **Web Search:** Tavily
 * **Embedding:** BAAI/bge-m3
 
 ### 핵심 Workflow
 
 ```text
-기술 원문 조사
-      ↓
-┌─────┬─────┬─────┬─────┐
-TRL   시장성  이해관계자  도메인
-└─────┴─────┴─────┴─────┘
-      ↓
-   관점 종합
-      ↓
-   근거 검증
-   ↙       ↘
-부족        충분
- ↓           ↓
-재검색      보고서 생성
- ↓
-해당 Agent 재평가
+사용자 질문
+    ↓
+오케스트레이터 ── 논문으로 기술 파악 → 필요한 worker와 지시를 동적으로 결정
+    ↓ (병렬, 1~6개)
+도메인 · 시장성 · 이해관계자 · 기술평가 worker  (검색 최대 3회 + 자기검토 1회)
+    ↓
+결과 종합 (코드)
+    ↓
+검증 (LLM) ── 부족 → 부족한 과제만 오케스트레이터가 다시 지시 (1회)
+    ↓ 충분
+보고서 (LLM 작성 + 코드 인용 검사)
 ```
 
 ---
@@ -71,18 +67,17 @@ ITME
 
 ## Key Features
 
-* 논문 PDF 기반 **RAG 기술 조사**
-* TRL·시장성·이해관계자·도메인 **4개 관점 병렬 평가**
-* 각 주장과 출처를 연결하는 **Evidence 관리**
-* 근거 부족 시 해당 항목만 **선택적 재검색**
-* 재검색 후 관련 평가 Agent를 다시 실행하는 **Retry Loop**
-* 관점 간 일치점뿐 아니라 **상충점과 Trade-off 탐지**
-* 근거가 부족한 경우 결론을 생성하지 않고 **판단 보류**
-* 한국어 질의 → 영어 논문 검색을 위한 **Cross-lingual Retrieval**
+* 질문에 맞춰 **오케스트레이터가 worker와 지시를 동적으로 계획** (과제 1~6개, 같은 worker 최대 2개)
+* worker는 **ReAct 에이전트**로 웹 검색·논문 검색을 스스로 고르고, 검색은 **최대 3회**
+* 모든 근거는 도구가 가져온 **원문과 글자 단위로 대조**한 인용만 인정
+* worker마다 **자기검토 1회**, 검증 단계가 부족하다고 하면 **부족한 과제만 1회 재시도**
+* 보고서 인용은 코드가 검사하고, 통과하지 못하면 **템플릿 보고서로 대체**
+* SQLite **Checkpointer**로 중단된 실행을 `--resume`으로 이어서 실행
+* `run_id`로 보고서 파일과 **LangSmith 추적**을 연결
 
 ### 차별점
 
-> **Agent의 첫 판단을 그대로 사용하지 않고, 근거를 검증한 뒤 부족한 관점만 다시 조사·평가한다.**
+> **판정은 LLM이 하되, 경계(계획 규칙·인용 원문 대조·재시도 상한)는 코드가 지킨다.**
 
 자세한 내용은 아래 [Differentiators](#differentiators)에 정리했습니다.
 
@@ -90,47 +85,34 @@ ITME
 
 ## Agents
 
-| Agent                 | 역할                             |
-| --------------------- | ------------------------------ |
-| **Research**          | 논문에서 기술 원리·성능·한계·실험 조건 추출      |
-| **TRL**               | 공개 근거를 TRL 1~9 기준에 매핑          |
-| **Market**            | 시장 수요·채택·생태계 평가                |
-| **Stakeholder**       | GPU·메모리·클라우드·개발자·투자자 관점 분석     |
-| **Domain**            | 데이터센터의 비용·SLA·운영 적합성 평가        |
-| **Synthesis**         | 4개 관점의 공통점·상충점·trade-off 종합    |
-| **Validation**        | 주장과 Evidence의 대응 및 근거 부족 여부 검사 |
-| **Additional Search** | 부족한 근거만 추가 검색 후 재평가 대상으로 전달    |
-| **Report**            | 검증된 State를 기반으로 최종 평가 보고서 생성   |
+| Agent | 역할 |
+| --- | --- |
+| **Orchestrator** | 논문 RAG로 기술 개요를 만들고, 질문에 필요한 하위 과제와 담당 worker를 정함. 재시도 때는 부족한 과제만 다시 지시 |
+| **Domain worker** | 데이터센터 비용·SLA(TTFT/TPOT, 정확도)·운영 적합성 |
+| **Market worker** | 수요·채택 사례·생태계와 의존성 |
+| **Stakeholder worker** | GPU·메모리 벤더, 클라우드, 오픈소스, 투자자 입장 |
+| **Tech worker** | 기술 원리·실험 근거·한계·성숙도(TRL) |
+| **Synthesizer** | worker 결과를 관점별로 모음 (코드, LLM 없음) |
+| **Validator** | 질문에 답하기에 충분한지 판정하고 부족한 과제에 보완점을 지시 |
+| **Reporter** | 8개 목차 보고서 작성. 인용·목차는 코드가 검사 |
 
 ---
 
 ## Agent Model Strategy
 
-아홉 Agent 모두 같은 모델(GPT-5.4 mini)을 사용하고, 역할별로 **추론 강도(reasoning effort)** 만 다르게 배치했습니다.
+모든 Agent가 같은 모델(GPT-5.4 mini)을 쓰고, 역할별로 **추론 강도(reasoning effort)** 만 다르게 둡니다.
 
-| Agent             | Model        | Effort | 이유                             |
-| ----------------- | ------------ | ------ | ------------------------------ |
-| Research          | GPT-5.4 mini | low    | RAG 결과 구조화·정보 추출               |
-| Additional Search | GPT-5.4 mini | low    | 부족 근거 재검색 결과 전달 (LLM 질의 재작성 미적용) |
-| TRL               | GPT-5.4 mini | medium | 명시된 TRL 기준에 근거 매핑              |
-| Market            | GPT-5.4 mini | medium | 검색 결과를 평가축에 분류                 |
-| Stakeholder       | GPT-5.4 mini | medium | 주체별 입장 구조화                     |
-| Domain            | GPT-5.4 mini | medium | 정해진 비용·SLA·운영 기준 평가            |
-| **Synthesis**     | GPT-5.4 mini | **high**   | 관점 간 상충·trade-off를 종합하는 고난도 추론 |
-| Validation        | GPT-5.4 mini | low    | 주장과 Evidence 대응 관계 검증          |
-| Report            | GPT-5.4 mini | medium | 검증된 결과의 장문 보고서 구조화             |
+| 역할 | Effort | 이유 |
+| --- | --- | --- |
+| Orchestrator | high | 질문을 하위 과제로 나누는 계획 |
+| Worker | medium | 검색어 선택과 근거 추출 |
+| Self-review | low | 인용과 주장의 대응 점검 |
+| Validator | medium | 충분성 판정과 보완 지시 |
+| Reporter | medium | 근거 기반 장문 작성 |
 
-> 모델을 하나로 통일해 배포·비용 구조를 단순화했습니다. 원격 API 호출은 로컬 GPU 메모리를 공유하지 않으므로 관점 fan-out이 실제로 병렬 실행됩니다. 로컬 Ollama 경로는 오프라인 재현·비교 실행용으로 남겨두었고 `LLM_PROVIDER=ollama`로 전환합니다. 모델 ID는 `OPENAI_MODEL` 환경변수로 덮어쓸 수 있습니다.
+모델 ID는 `OPENAI_MODEL` 환경변수로 바꿀 수 있습니다.
 
 ---
-
-### 최종 보고서 생성
-
-기본 real CLI는 근거 검증과 선택적 재평가를 마친 후 종합 LLM을 한 번 호출하고,
-보고서 LLM으로 본문을 다듬습니다. 두 단계의 생성 문장은 validation 모델로
-지지 여부를 확인합니다. 보고서의 판정·보류·수치·인용은 결정적으로 보호하며,
-검사에 실패한 보고서 본문은 저장하지 않습니다. 모델 호출에는 timeout이 적용됩니다.
-일반 테스트는 오프라인이며 실 API 테스트는 `RUN_LIVE_LLM_TESTS=1`로 별도 실행합니다.
 
 ## RAG
 
@@ -175,61 +157,47 @@ section
 
 ```mermaid
 flowchart TD
-    S([시작]) --> A[기술 및 도메인 입력]
-    A --> B[기술 조사 Agent · RAG]
-
-    B --> C[TRL 평가 Agent]
-    B --> D[시장성 평가 Agent]
-    B --> E[이해관계자 평가 Agent]
-    B --> F[도메인 평가 Agent · RAG]
-
-    C --> G[종합 Agent]
-    D --> G
-    E --> G
-    F --> G
-
-    G --> H{근거 검증 Agent}
-
-    H -->|근거 충분| L[최종 종합 재계산]
-    L --> J[보고서 생성 Agent]
-    J --> Z([종료])
-
-    H -->|근거 부족 · retry < 2| I[추가 검색 Agent]
-    I --> K{재평가 대상}
-
-    K --> C
-    K --> D
-    K --> E
-    K --> F
+    S([사용자 질문]) --> O[오케스트레이터 · 논문 RAG + 계획]
+    O -->|Send · 1~6개| W1[도메인]
+    O --> W2[시장성]
+    O --> W3[이해관계자]
+    O --> W4[기술평가]
+    W1 --> Y[종합 · 코드]
+    W2 --> Y
+    W3 --> Y
+    W4 --> Y
+    Y --> V{검증 · LLM}
+    V -->|충분 또는 재시도 소진| R[보고서]
+    V -->|부족 · retry < 1| O
+    R --> E([종료])
 ```
 
-핵심은:
+worker 내부는 `create_agent` ReAct 루프입니다. 도구는 `web_search`(Tavily)와 `paper_search`(bge-m3 색인)이고, `ToolCallLimitMiddleware`가 호출을 3회로 제한합니다. 끝나면 코드가 인용을 원문과 대조하고, LLM 자기검토 1회 뒤 한 번 더 대조합니다.
 
-> **병렬 평가 → 종합 → 근거 검증 → 부족한 관점만 재검색·재평가 → 최종 종합 재계산 → 보고서 생성**
-
-종합은 `supports_claim=True`인 근거만 사용하는데 근거 검증이 그 뒤에 실행되므로, 보고서로 나가기 직전에 종합을 한 번 더 계산합니다. 이 단계가 없으면 마지막 검증에서 승인된 근거가 보고서 5장에 반영되지 않습니다. 판정은 검증이 정규화한 값을 유지하고 findings만 다시 계산합니다.
-
-입니다.
+판정(검증)은 LLM, 다음 경로와 재시도 상한은 `checks.route_after_validate`가 정합니다. 무한 루프는 `recursion_limit=15`로 한 번 더 막습니다.
 
 ---
 
 ## State Design
 
-Agent는 직접 결과를 주고받는 대신 공통 State를 통해 구조화된 데이터를 전달합니다.
+노드는 바뀐 키만 반환합니다. 병렬 worker는 자기 `task_id` 키에만 쓰고, dict 병합 Reducer로 합쳐집니다.
 
 ```text
-tech_analysis
-trl_analysis
-market_analysis
-stakeholder_analysis
-domain_analysis
-evidence
-missing_evidence
-synthesis
-report
+run_id          실행 번호 (보고서 파일·LangSmith metadata·체크포인트 thread_id)
+question        사용자 질문
+tech_brief      오케스트레이터가 논문으로 만든 기술 개요
+plan            하위 과제 목록 [{id, agent, instruction}]
+worker_results  task_id → {from, success, findings[{claim, source_id, quote}], verdict, error}
+sources         source_id → 도구가 가져온 원문 (인용 검사의 기준)
+result          관점별로 묶은 worker 결과
+verdict         {sufficient, feedback: task_id → 보완점}
+retry_count     재시도 횟수 (최대 1)
+node_status     노드·과제별 pending / done / failed
+last_error      중단 시 마지막 오류 (재개 안내용)
+report          최종 Markdown
 ```
 
-관점별 State key를 분리해 병렬 실행 시 충돌을 방지하고, `evidence`는 Reducer를 통해 누적합니다.
+자세한 계약은 [`docs/interfaces.md`](docs/interfaces.md)에 있습니다.
 
 ---
 
@@ -367,17 +335,19 @@ confidence를 low로 표시합니다. 지지하는 근거를 찾지 못하면 �
 ## Directory Structure
 
 ```text
-├── data/                  # PDF·청크·벡터 문서 풀
+├── data/                  # PDF (커밋하지 않음)
+├── index/                 # 논문 색인 (커밋하지 않음)
 ├── src/skala_agent/
-│   ├── agents/            # Agent
-│   ├── prompts/           # Prompt
-│   ├── retrieval/         # PDF / Embedding / Retrieval
-│   ├── workflow/          # LangGraph
-│   ├── providers.py       # LLM / Search Provider
-│   └── cli.py             # 실행 Entry Point
-├── outputs/               # 최종 보고서
-├── tests/                 # 테스트
-└── README.md
+│   ├── agents/            # orchestrator · worker · synthesizer · validator · reporter
+│   ├── prompts/           # 에이전트별 프롬프트
+│   ├── retrieval/         # PDF / 청킹 / 임베딩 / 검색
+│   ├── workflow/          # State와 LangGraph 그래프
+│   ├── checks.py          # 계획·인용·보고서·분기 규칙 (LLM 없음)
+│   ├── tools.py           # web_search · paper_search
+│   ├── llm.py             # 역할별 모델
+│   └── cli.py             # 실행 진입점
+├── outputs/               # report-{run_id}.md, checkpoints.sqlite
+└── tests/                 # 단위 테스트 + live 테스트
 ```
 
 ---
@@ -386,14 +356,15 @@ confidence를 low로 표시합니다. 지지하는 근거를 찾지 못하면 �
 
 ```bash
 make setup
-make run
-make test
+make run                                   # 기본 질문으로 보고서 생성
+uv run skala-agent --question "도입 비용 관점에서 비교해줘"
+uv run skala-agent --resume <run_id>       # 중단된 실행 이어서
+make test                                  # 단위 + live (실제 API 호출)
+make test-unit                             # API 없이 규칙만
 make lint
 ```
 
-필요한 외부 API Key는 `.env`로 관리하며 Repository에는 포함하지 않습니다.
-
-로컬 Agent는 Ollama를 통해 실행합니다.
+필요한 외부 API Key(OpenAI, Tavily, 선택: LangSmith)는 `.env`로 관리하며 Repository에는 포함하지 않습니다. 예시는 `.env.example`에 있습니다. 논문 색인은 `uv sync --extra embedding` 후 `uv run skala-index`로 만듭니다.
 
 ---
 
